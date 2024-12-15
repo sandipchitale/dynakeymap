@@ -24,7 +24,13 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Display the current KeyMap</li>
+            <li>Display the current KeyMap in two tabs</li>
+            <li>
+                <ol>
+                    <li>Key x Modifiers tab</li>
+                    <li>Action | Shortcuts tab</li>
+                </ol>
+            </li>
         </ul>
 
         <h2>Features</h2>
