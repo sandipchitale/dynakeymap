@@ -33,7 +33,8 @@
 
         <h2>Known Issues</h2>
         <ul>
-            <li>Currently, shows one keyboard shortcuts bindings only.</li>
+<!--            <li>None</li>-->
+            <li>Currently, shows one keyboard shortcuts bindings only. Working on it.</li>
         </ul>
         ]]></change-notes>
 

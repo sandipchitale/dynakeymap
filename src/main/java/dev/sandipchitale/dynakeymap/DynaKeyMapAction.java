@@ -84,7 +84,7 @@ public class DynaKeyMapAction extends AnAction {
         String[] modifiers = {"shift", "ctrl", "alt", "shift ctrl", "shift alt", "ctrl alt", "shift ctrl alt", ""};
 
         // Print table header
-        stringBuilder.append("|");
+        stringBuilder.append("|**First** ![Current Key Map](").append(ICON_DATA_URL).append(")|");
         stringBuilder.append("![Current Key Map](").append(ICON_DATA_URL).append(")");
         for (String mod : modifiers) {
             stringBuilder.append("|");
@@ -99,26 +99,19 @@ public class DynaKeyMapAction extends AnAction {
         stringBuilder.append("|\n");
 
         // Print separator
-        stringBuilder.append("|-");
+        stringBuilder.append("|-|-");
         for (String mod : modifiers) {
             stringBuilder.append("|-");
         }
         stringBuilder.append("|\n");
 
-        stringBuilder.append("|**Keys**|||||||||\n");
-
-        // Print separator
-        stringBuilder.append("|-");
-        for (String mod : modifiers) {
-            stringBuilder.append("|-");
-        }
-        stringBuilder.append("|\n");
+        stringBuilder.append("||**Keys**|||||||||\n");
 
         ActionManager actionManager = ActionManager.getInstance();
         // Print rows
         for (String key : allKeys) {
             // Print key
-            stringBuilder.append("|").append("**").append(kbdfy(key)).append("**");
+            stringBuilder.append("||").append("**").append(kbdfy(key)).append("**");
             for (String mod : modifiers) {
                 KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
                 if (keyStrokeToActionIdMap.containsKey(keyStroke)) {
@@ -168,25 +161,11 @@ public class DynaKeyMapAction extends AnAction {
                     stringBuilder.append("|")
                             .append(actionName)
                             .append("|")
-                            .append(kbdfy(shortcut.toString().replaceAll("pressed ", "")))
+                            .append(kbdfy(shortcut.toString().replaceAll("pressed ", "").replace("+", " ")))
                             .append("|\n");
                 }
             }
         }
-
-//        for (String actionId : actionIdList) {
-//            AnAction action = actionManager.getAction(actionId);
-//            Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
-//            for (Shortcut shortcut : shortcuts) {
-//                if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-//                    stringBuilder.append("|")
-//                            .append(action == null ? actionId : action.getTemplatePresentation().getText())
-//                            .append("|")
-//                            .append(kbdfy(shortcut.toString()))
-//                            .append("|\n");
-//                }
-//            }
-//        }
 
         return stringBuilder.toString();
     }
