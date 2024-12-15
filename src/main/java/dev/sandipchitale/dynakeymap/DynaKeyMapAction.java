@@ -138,7 +138,7 @@ public class DynaKeyMapAction extends AnAction {
                         String actionId = actionIds.get(i);
                         AnAction action = actionManager.getAction(actionId);
                         stringBuilder.append("<nobr>");
-                        stringBuilder.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
+                        stringBuilder.append("[ ").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append(" ]").append(" -> ");
                         if (action == null) {
                             stringBuilder.append(actionId);
                         } else {
@@ -171,8 +171,8 @@ public class DynaKeyMapAction extends AnAction {
                         String actionId = firstKeyStrokeAndActionId.actionId();
                         AnAction action = actionManager.getAction(actionId);
                         stringBuilderAccumulate.append("<nobr>");
-                        stringBuilderAccumulate.append("[").append(kbdfy(firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", ""))).append("]").append(" ");
-                        stringBuilderAccumulate.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
+                        stringBuilderAccumulate.append("[ ").append(kbdfy(firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", ""))).append(" ]").append(" ");
+                        stringBuilderAccumulate.append("[ ").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append(" ]").append(" -> ");
                         if (action == null) {
                             stringBuilderAccumulate.append(actionId);
                         } else {
