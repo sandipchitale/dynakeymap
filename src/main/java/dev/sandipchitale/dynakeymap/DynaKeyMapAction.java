@@ -17,6 +17,7 @@ import java.awt.event.KeyEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class DynaKeyMapAction extends AnAction {
 
@@ -90,7 +91,7 @@ public class DynaKeyMapAction extends AnAction {
             if (!mod.isEmpty()) {
                 stringBuilder.append("**");
             }
-            stringBuilder.append(mod.isEmpty() ? "none" : mod);
+            stringBuilder.append(mod.isEmpty() ? "none" : kbdfy(mod));
             if (!mod.isEmpty()) {
                 stringBuilder.append("**");
             }
@@ -108,7 +109,7 @@ public class DynaKeyMapAction extends AnAction {
         // Print rows
         for (String key : allKeys) {
             // Print key
-            stringBuilder.append("|").append("**").append(key).append("**");
+            stringBuilder.append("|").append("**").append(kbdfy(key)).append("**");
             for (String mod : modifiers) {
                 KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
                 if (keyStrokeToActionIdMap.containsKey(keyStroke)) {
@@ -141,15 +142,21 @@ public class DynaKeyMapAction extends AnAction {
             Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
             for (Shortcut shortcut : shortcuts) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                     stringBuilder.append("|")
+                    stringBuilder.append("|")
                             .append(action == null ? actionId : action.getTemplatePresentation().getText())
                             .append("|")
-                            .append(shortcut)
+                            .append(kbdfy(shortcut.toString()))
                             .append("|\n");
                 }
             }
         }
 
         return stringBuilder.toString();
+    }
+
+    private static Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");
+
+    private static String kbdfy(String keys) {
+        return KEY_MATCHER.matcher(keys).replaceAll("<kbd>$1</kbd>").trim();
     }
 }
