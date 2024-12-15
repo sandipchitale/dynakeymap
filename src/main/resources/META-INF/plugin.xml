@@ -34,7 +34,7 @@
         <h2>Known Issues</h2>
         <ul>
 <!--            <li>None</li>-->
-            <li>Currently, shows one keyboard shortcuts bindings only. Working on it.</li>
+            <li>Mac also has Command key. Not shown as of now. Working on it.</li>
         </ul>
         ]]></change-notes>
 
