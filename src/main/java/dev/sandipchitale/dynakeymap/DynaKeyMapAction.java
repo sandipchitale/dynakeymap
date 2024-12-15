@@ -9,6 +9,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.text.DateFormatUtil;
 import org.jetbrains.annotations.NotNull;
@@ -90,12 +91,16 @@ public class DynaKeyMapAction extends AnAction {
         Collections.sort(allKeys);
 
         // Generate header combinations (excluding zero-length item)
-        String[] modifiers = {"shift", "ctrl", "meta", "alt", "shift ctrl", "shift meta", "shift alt", "ctrl meta", "ctrl alt", "meta alt", "shift ctrl meta", "shift ctrl alt", "shift meta alt", "ctrl meta alt", "shift ctrl meta alt", ""};
-
+        String[] modifiers;
+        if (SystemInfo.isMac) {
+            modifiers = new String[]{"shift", "ctrl", "meta", "alt", "shift ctrl", "shift meta", "shift alt", "ctrl meta", "ctrl alt", "meta alt", "shift ctrl meta", "shift ctrl alt", "shift meta alt", "ctrl meta alt", "shift ctrl meta alt", ""};
+        } else {
+            modifiers = new String[]{"shift", "ctrl", "alt", "shift ctrl", "shift alt", "ctrl alt", "shift ctrl alt", ""};
+        }
         // Print table header
         stringBuilder.append("|![Current Key Map](").append(ICON_DATA_URL).append(")");
         for (String mod : modifiers) {
-            stringBuilder.append("|");
+            stringBuilder.append("|<nobr>");
             if (!mod.isEmpty()) {
                 stringBuilder.append("**");
             }
@@ -103,6 +108,7 @@ public class DynaKeyMapAction extends AnAction {
             if (!mod.isEmpty()) {
                 stringBuilder.append("**");
             }
+            stringBuilder.append("</nobr>");
         }
         stringBuilder.append("|\n");
 
@@ -131,12 +137,14 @@ public class DynaKeyMapAction extends AnAction {
                         }
                         String actionId = actionIds.get(i);
                         AnAction action = actionManager.getAction(actionId);
+                        stringBuilder.append("<nobr>");
                         stringBuilder.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
                         if (action == null) {
                             stringBuilder.append(actionId);
                         } else {
                             stringBuilder.append(action.getTemplatePresentation().getText());
                         }
+                        stringBuilder.append("</nobr>");
                     }
                 } else {
                     stringBuilder.append("|");
@@ -158,6 +166,7 @@ public class DynaKeyMapAction extends AnAction {
                         FirstKeyStrokeAndActionId firstKeyStrokeAndActionId = firstKeyStrokeAndActionIds.get(i);
                         String actionId = firstKeyStrokeAndActionId.actionId();
                         AnAction action = actionManager.getAction(actionId);
+                        stringBuilder.append("<nobr>");
                         stringBuilder.append("[").append(kbdfy(firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", ""))).append("]").append(" ");
                         stringBuilder.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
                         if (action == null) {
@@ -165,6 +174,7 @@ public class DynaKeyMapAction extends AnAction {
                         } else {
                             stringBuilder.append(action.getTemplatePresentation().getText());
                         }
+                        stringBuilder.append("</nobr>");
                     }
                 } else {
                     stringBuilder.append("|");
