@@ -152,35 +152,42 @@ public class DynaKeyMapAction extends AnAction {
             }
             stringBuilder.append("|\n");
 
-            stringBuilder.append("|").append("**").append(kbdfy(key)).append("**");
+            boolean append = false;
+
+            StringBuilder stringBuilderAccumulate = new StringBuilder();
+            stringBuilderAccumulate.append("|").append("**").append(kbdfy(key)).append("**");
             for (String mod : modifiers) {
                 // Fist stroke only
                 KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
                 if (firstStrokeToFirstKeyStrokeAndActionIdMap.containsKey(keyStroke)) {
-                    stringBuilder.append("|");
+                    stringBuilderAccumulate.append("|");
                     List<FirstKeyStrokeAndActionId> firstKeyStrokeAndActionIds = firstStrokeToFirstKeyStrokeAndActionIdMap.get(keyStroke);
                     for (int i = 0; i < firstKeyStrokeAndActionIds.size(); i++) {
+                        append = true;
                         if (i > 0) {
-                            stringBuilder.append("<br/>");
+                            stringBuilderAccumulate.append("<br/>");
                         }
                         FirstKeyStrokeAndActionId firstKeyStrokeAndActionId = firstKeyStrokeAndActionIds.get(i);
                         String actionId = firstKeyStrokeAndActionId.actionId();
                         AnAction action = actionManager.getAction(actionId);
-                        stringBuilder.append("<nobr>");
-                        stringBuilder.append("[").append(kbdfy(firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", ""))).append("]").append(" ");
-                        stringBuilder.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
+                        stringBuilderAccumulate.append("<nobr>");
+                        stringBuilderAccumulate.append("[").append(kbdfy(firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", ""))).append("]").append(" ");
+                        stringBuilderAccumulate.append("[").append(kbdfy(keyStroke.toString().replaceAll("pressed ", ""))).append("]").append(" -> ");
                         if (action == null) {
-                            stringBuilder.append(actionId);
+                            stringBuilderAccumulate.append(actionId);
                         } else {
-                            stringBuilder.append(action.getTemplatePresentation().getText());
+                            stringBuilderAccumulate.append(action.getTemplatePresentation().getText());
                         }
-                        stringBuilder.append("</nobr>");
+                        stringBuilderAccumulate.append("</nobr>");
                     }
                 } else {
-                    stringBuilder.append("|");
+                    stringBuilderAccumulate.append("|");
                 }
             }
-            stringBuilder.append("|\n");
+            stringBuilderAccumulate.append("|\n");
+            if (append) {
+                stringBuilder.append(stringBuilderAccumulate);
+            }
         }
 
         SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
