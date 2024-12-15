@@ -90,7 +90,7 @@ public class DynaKeyMapAction extends AnAction {
         Collections.sort(allKeys);
 
         // Generate header combinations (excluding zero-length item)
-        String[] modifiers = {"shift", "ctrl", "alt", "shift ctrl", "shift alt", "ctrl alt", "shift ctrl alt", ""};
+        String[] modifiers = {"shift", "ctrl", "meta", "alt", "shift ctrl", "shift meta", "shift alt", "ctrl meta", "ctrl alt", "meta alt", "shift ctrl meta", "shift ctrl alt", "shift meta alt", "ctrl meta alt", "shift ctrl meta alt", ""};
 
         // Print table header
         stringBuilder.append("|![Current Key Map](").append(ICON_DATA_URL).append(")");
