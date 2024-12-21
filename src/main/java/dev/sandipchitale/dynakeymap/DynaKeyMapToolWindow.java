@@ -10,6 +10,8 @@ import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
+import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.components.JBTextArea;
@@ -25,8 +27,8 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
@@ -79,7 +81,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     }
 
 
-    private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {}
+    private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
+    }
 
     public DynaKeyMapToolWindow(@NotNull Project project) {
         super(true, true);
@@ -168,6 +171,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         setContent(tabbedPane);
 
+
+        final ActionManager actionManager = ActionManager.getInstance();
+        ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Current Keymap and Action Map");
+
+        DynaKeyMapRefreshAction refreshHelmExplorerAction = (DynaKeyMapRefreshAction) actionManager.getAction("DynaKeyMapRefresh");
+        refreshHelmExplorerAction.setDynaKeyMapToolWindow(this);
+        Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(refreshHelmExplorerAction));
+
         refresh();
     }
 
@@ -195,8 +206,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         ActionManager actionManager = ActionManager.getInstance();
 
-        int maxRowsInAllRow = 1;;
-        for (String key: ALL_KEYS) {
+        int maxRowsInAllRow = 1;
+        ;
+        for (String key : ALL_KEYS) {
             Vector row = new Vector();
             row.add(key);
             row.add("");

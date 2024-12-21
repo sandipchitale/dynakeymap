@@ -24,17 +24,18 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Display the current KeyMap in two tabs</li>
-            <li>
-                <ol>
-                    <li>Key x Modifiers tab</li>
-                    <li>Action | Shortcuts tab</li>
-                </ol>
-            </li>
+            <li>Current Keymap and Action Map as tool window instead of Markdown editors.</li>
         </ul>
 
         <h2>Features</h2>
         <ul>
+            <li>Display in two tabs:</li>
+            <li>
+                <ol>
+                    <li>Keymap tab</li>
+                    <li>Action Map tab</li>
+                </ol>
+            </li>
         </ul>
 
         <h2>Known Issues</h2>
@@ -59,11 +60,11 @@
                 displayType="BALLOON"/>
     </extensions>
 
-
     <actions>
-        <action id="DynaKeyMap"
-                class="dev.sandipchitale.dynakeymap.DynaKeyMapAction"
-                text="Current KeyMap (Dynamic)"
-                description="Display the he current KeyMap"/>
+        <action id="DynaKeyMapRefresh"
+                class="dev.sandipchitale.dynakeymap.DynaKeyMapRefreshAction"
+                text="Refresh"
+                icon="AllIcons.Actions.Refresh"
+                description="Refresh the current keymap and action map tool window"/>
     </actions>
 </idea-plugin>
