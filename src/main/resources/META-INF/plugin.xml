@@ -46,7 +46,17 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-
+        <toolWindow
+                factoryClass="dev.sandipchitale.dynakeymap.DynaKeyMapToolWindowFactory"
+                id="Current Keymap and Action Map"
+                anchor="bottom"
+                icon="dev.sandipchitale.dynakeymap.DynaKeyMapIcons.ICON"
+                secondary="true"
+        />
+        <notificationGroup
+                id="pluginsExplorerNotificationGroup"
+                toolWindowId="Current Keymap and Action Map"
+                displayType="BALLOON"/>
     </extensions>
 
 

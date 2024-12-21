@@ -86,7 +86,7 @@ public class DynaKeyMapAction extends AnAction {
 
         Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
         Map<KeyStroke, List<String>> keyStrokeToActionIdMap = new HashMap<>();
-        Map<KeyStroke, List<FirstKeyStrokeAndActionId>> firstStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
+        Map<KeyStroke, List<FirstKeyStrokeAndActionId>> secondStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
         Collection<String> actionIdList = activeKeymap.getActionIdList();
         for (String actionId : actionIdList) {
             Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
@@ -96,7 +96,7 @@ public class DynaKeyMapAction extends AnAction {
                     keyStrokeToActionIdMap.computeIfAbsent(firstKeyStroke, k -> new ArrayList<>()).add(actionId);
                     KeyStroke secondKeyStroke = keyboardShortcut.getSecondKeyStroke();
                     if (secondKeyStroke != null) {
-                        firstStrokeToFirstKeyStrokeAndActionIdMap.computeIfAbsent(secondKeyStroke, k -> new ArrayList<>()).add(new FirstKeyStrokeAndActionId(firstKeyStroke, actionId));
+                        secondStrokeToFirstKeyStrokeAndActionIdMap.computeIfAbsent(secondKeyStroke, k -> new ArrayList<>()).add(new FirstKeyStrokeAndActionId(firstKeyStroke, actionId));
                     }
                 }
             }
@@ -128,6 +128,7 @@ public class DynaKeyMapAction extends AnAction {
         }
         // Print table header
         stringBuilder.append("|![Current Key Map](").append(ICON_DATA_URL).append(")");
+        stringBuilder.append("|![Current Key Map](").append(ICON_DATA_URL).append(")");
         for (String mod : modifiers) {
             stringBuilder.append("|<nobr>");
             if (!mod.isEmpty()) {
@@ -142,17 +143,17 @@ public class DynaKeyMapAction extends AnAction {
         stringBuilder.append("|\n");
 
         // Print separator
-        stringBuilder.append("|-");
-        for (String mod : modifiers) {
+        stringBuilder.append("|-|-");
+        for (String ignore : modifiers) {
             stringBuilder.append("|-");
         }
         stringBuilder.append("|\n");
 
-        stringBuilder.append("|**Keys**|||||||||\n");
+        stringBuilder.append("|**Key**|**Second Key**|||||||||\n");
 
         ActionManager actionManager = ActionManager.getInstance();
         for (String key : allKeys) {
-            stringBuilder.append("|").append("**").append(kbdfy(key)).append("**");
+            stringBuilder.append("|").append("**").append(kbdfy(key)).append("**|");
             for (String mod : modifiers) {
                 // Fist stroke only
                 KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
@@ -184,13 +185,13 @@ public class DynaKeyMapAction extends AnAction {
             boolean append = false;
 
             StringBuilder stringBuilderAccumulate = new StringBuilder();
-            stringBuilderAccumulate.append("|").append("**").append(kbdfy(key)).append("**");
+            stringBuilderAccumulate.append("||").append("**").append(kbdfy(key)).append("**");
             for (String mod : modifiers) {
                 // Fist stroke only
                 KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
-                if (firstStrokeToFirstKeyStrokeAndActionIdMap.containsKey(keyStroke)) {
+                if (secondStrokeToFirstKeyStrokeAndActionIdMap.containsKey(keyStroke)) {
                     stringBuilderAccumulate.append("|");
-                    List<FirstKeyStrokeAndActionId> firstKeyStrokeAndActionIds = firstStrokeToFirstKeyStrokeAndActionIdMap.get(keyStroke);
+                    List<FirstKeyStrokeAndActionId> firstKeyStrokeAndActionIds = secondStrokeToFirstKeyStrokeAndActionIdMap.get(keyStroke);
                     for (int i = 0; i < firstKeyStrokeAndActionIds.size(); i++) {
                         append = true;
                         if (i > 0) {
@@ -248,7 +249,7 @@ public class DynaKeyMapAction extends AnAction {
                     stringBuilder.append("|")
                             .append(actionName)
                             .append("|")
-                            .append(kbdfy(shortcut.toString().replaceAll("pressed ", "").replace("+", " ")))
+                            .append(kbdfy(keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ")))
                             .append("|\n");
                 }
             }
@@ -261,6 +262,7 @@ public class DynaKeyMapAction extends AnAction {
     private static final Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");
 
     private static String kbdfy(String keys) {
-        return KEY_MATCHER.matcher(keys).replaceAll("<kbd>$1</kbd>").trim();
+        return String.format("<pre>%s</pre>", keys);
+//        return KEY_MATCHER.matcher(keys).replaceAll("<kbd>$1</kbd>").trim();
     }
 }
