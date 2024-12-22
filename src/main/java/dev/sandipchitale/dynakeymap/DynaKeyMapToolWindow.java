@@ -12,18 +12,20 @@ import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
+import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.ScrollPaneFactory;
+import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.components.JBTextArea;
+import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.components.BorderLayoutPanel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumn;
+import javax.swing.table.*;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -80,6 +82,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         System.arraycopy(MODIFIERS, 0, COLUMNS, index, MODIFIERS.length);
     }
 
+    private final TableRowSorter<DefaultTableModel> tableRowSorter;
+    private final SearchTextField searchTextField;
 
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
@@ -131,6 +135,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         });
 
+
         TableCellRenderer dynaKeyMapTableCellRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -145,6 +150,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 return label;
             }
         };
+        tableRowSorter = new TableRowSorter<>(dynaKeyMapTableModel);
+        dynaKeyMapTable.setRowSorter(tableRowSorter);
 
         TableColumn column;
 
@@ -161,7 +168,30 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         column.setCellRenderer(dynaKeyMapTableCellRenderer);
 
         JBTabbedPane tabbedPane = new JBTabbedPane();
-        tabbedPane.addTab("Keymap", ScrollPaneFactory.createScrollPane(dynaKeyMapTable));
+        BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
+
+        searchTextField = new SearchTextField();
+        searchTextField.setToolTipText("Search");
+        searchTextField.addKeyboardListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE || e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                        searchTextField.setText("");
+                    }
+                    String text = searchTextField.getText();
+                    if (text.isEmpty()) {
+                        tableRowSorter.setRowFilter(null);
+                    } else {
+                        tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+                    }
+                }
+            }
+        });
+        dynaKeyMapTablePanel.addToTop(searchTextField);
+        dynaKeyMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(dynaKeyMapTable));
+
+        tabbedPane.addTab("Keymap", dynaKeyMapTablePanel);
 
         actionToShortcutTextArea = new JBTextArea();
         actionToShortcutTextArea.setEditable(false);
@@ -170,7 +200,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         tabbedPane.setSelectedIndex(0);
 
         setContent(tabbedPane);
-
 
         final ActionManager actionManager = ActionManager.getInstance();
         ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Current Keymap and Action Map");
