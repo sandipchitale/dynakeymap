@@ -12,12 +12,10 @@ import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
-import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.components.JBTextArea;
-import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import org.jetbrains.annotations.NotNull;
@@ -175,10 +173,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         searchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ESCAPE || e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                        searchTextField.setText("");
-                    }
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    searchTextField.setText("");
+                    tableRowSorter.setRowFilter(null);
+                    return;
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     String text = searchTextField.getText();
                     if (text.isEmpty()) {
                         tableRowSorter.setRowFilter(null);
@@ -335,6 +334,10 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
             }
         }
+
+        List<String> actionHistory = actionNameToShortcutsMap.keySet().stream().filter((String s) -> s.length() > 1).toList();
+        searchTextField.setHistory(actionHistory);
+        searchTextField.setHistorySize(actionHistory.size());
 
         int lineNumber = 0;
         StringBuilder stringBuilder = new StringBuilder();
