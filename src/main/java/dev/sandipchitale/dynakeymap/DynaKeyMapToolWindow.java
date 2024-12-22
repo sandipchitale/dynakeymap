@@ -234,9 +234,10 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         ActionManager actionManager = ActionManager.getInstance();
 
-        int maxRowsInAllRow = 1;
-        ;
         for (String key : ALL_KEYS) {
+
+            // First stroke row
+            int maxRowsInARow = 1;
             Vector row = new Vector();
             row.add(key);
             row.add("");
@@ -268,17 +269,23 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                         stringBuilder.append("</nobr>");
                     }
                     row.add(stringBuilder.toString());
-                    maxRowsInAllRow = Math.max(maxRowsInAllRow, rowsInCell);
+                    maxRowsInARow = Math.max(maxRowsInARow, rowsInCell);
                 } else {
                     row.add("");
-                    // No need to adjust maxRowsInAllRow
+                    // No need to adjust maxRowsInARow
                 }
             }
             dynaKeyMapTableModel.addRow(row);
+            int lastRow = dynaKeyMapTableModel.getRowCount() - 1;
+            System.out.println("lastRow = " + lastRow + " maxRowsInARow = " + maxRowsInARow);
 
+            dynaKeyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
+
+            maxRowsInARow = 1;
             row = new Vector();
             row.add("");
             row.add(key);
+
             boolean addRowForSecondStroke = false;
             for (String mod : MODIFIERS) {
                 // Second stroke
@@ -308,19 +315,21 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                             stringBuilder.append(action.getTemplatePresentation().getText());
                         }
                         stringBuilder.append("</nobr>");
-                        row.add(stringBuilder.toString());
-                        maxRowsInAllRow = Math.max(maxRowsInAllRow, rowsInCell);
                     }
+                    row.add(stringBuilder.toString());
+                    maxRowsInARow = Math.max(maxRowsInARow, rowsInCell);
                 } else {
                     row.add("");
-                    // No need to adjust maxRowsInAllRow
+                    // No need to adjust maxRowsInARow
                 }
             }
             if (addRowForSecondStroke) {
-                dynaKeyMapTableModel.addRow(row);
+                dynaKeyMapTableModel.addRow(row); //
+                int lastRowForSecondKeyStrokeRow = dynaKeyMapTableModel.getRowCount() - 1;
+                System.out.println("lastRowForSecondKeyStrokeRow = " + lastRowForSecondKeyStrokeRow + " maxRowsInARow = " + maxRowsInARow);
+                dynaKeyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow,  (maxRowsInARow * 24) + 24);
             }
         }
-        dynaKeyMapTable.setRowHeight((maxRowsInAllRow * 16) + 4);
 
         SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
         for (String actionId : actionIdList) {
