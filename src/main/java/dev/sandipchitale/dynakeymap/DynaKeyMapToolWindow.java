@@ -277,8 +277,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
             dynaKeyMapTableModel.addRow(row);
             int lastRow = dynaKeyMapTableModel.getRowCount() - 1;
-            System.out.println("lastRow = " + lastRow + " maxRowsInARow = " + maxRowsInARow);
-
             dynaKeyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
 
             maxRowsInARow = 1;
@@ -326,7 +324,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             if (addRowForSecondStroke) {
                 dynaKeyMapTableModel.addRow(row); //
                 int lastRowForSecondKeyStrokeRow = dynaKeyMapTableModel.getRowCount() - 1;
-                System.out.println("lastRowForSecondKeyStrokeRow = " + lastRowForSecondKeyStrokeRow + " maxRowsInARow = " + maxRowsInARow);
                 dynaKeyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow,  (maxRowsInARow * 24) + 24);
             }
         }
