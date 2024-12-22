@@ -1,5 +1,6 @@
 package dev.sandipchitale.dynakeymap;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
@@ -90,7 +91,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         super(true, true);
         this.project = project;
 
-
         dynaKeyMapTableModel = new DefaultTableModel(COLUMNS, 0) {
 
             @Override
@@ -133,7 +133,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         });
 
-
         TableCellRenderer dynaKeyMapTableCellRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -153,23 +152,29 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         TableColumn column;
 
-        column = this.dynaKeyMapTable.getColumnModel().getColumn(FIRST_KEYSTROKE_KEY);
+        column = dynaKeyMapTable.getColumnModel().getColumn(FIRST_KEYSTROKE_KEY);
         column.setMinWidth(250);
         column.setWidth(250);
         column.setMaxWidth(250);
         column.setCellRenderer(dynaKeyMapTableCellRenderer);
 
-        column = this.dynaKeyMapTable.getColumnModel().getColumn(SECOND_KEYSTROKE_KEY);
+        column = dynaKeyMapTable.getColumnModel().getColumn(SECOND_KEYSTROKE_KEY);
         column.setMinWidth(250);
         column.setWidth(250);
         column.setMaxWidth(250);
         column.setCellRenderer(dynaKeyMapTableCellRenderer);
 
+        JTableHeader tableHeader = dynaKeyMapTable.getTableHeader();
+        Dimension tableHeaderPreferredSize = tableHeader.getPreferredSize();
+        tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, 48));
+        tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns are hidden.");
         JBTabbedPane tabbedPane = new JBTabbedPane();
         BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
 
+        BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
+
         searchTextField = new SearchTextField();
-        searchTextField.setToolTipText("Search");
+        searchTextField.setToolTipText("Search. NOTE: Text will match in hidden columns as well.");
         searchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -187,8 +192,26 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
             }
         });
-        dynaKeyMapTablePanel.addToTop(searchTextField);
-        dynaKeyMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(dynaKeyMapTable));
+        toolbarPanel.addToCenter(searchTextField);
+
+        JButton searchButton = new JButton(AllIcons.Actions.Find);
+        searchButton.setToolTipText("Search. NOTE: Text will match in hidden columns as well.   ");
+        searchButton.addActionListener(e -> {
+            String text = searchTextField.getText();
+            if (text.isEmpty()) {
+                tableRowSorter.setRowFilter(null);
+            } else {
+                tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+            }
+        });
+        toolbarPanel.addToRight(searchButton);
+
+        dynaKeyMapTablePanel.addToTop(toolbarPanel);
+
+        JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(dynaKeyMapTable);
+        dynaKeyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
+
+        new JTableColumnSelector().install(dynaKeyMapTable);
 
         tabbedPane.addTab("Keymap", dynaKeyMapTablePanel);
 
@@ -324,7 +347,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             if (addRowForSecondStroke) {
                 dynaKeyMapTableModel.addRow(row); //
                 int lastRowForSecondKeyStrokeRow = dynaKeyMapTableModel.getRowCount() - 1;
-                dynaKeyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow,  (maxRowsInARow * 24) + 24);
+                dynaKeyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow, (maxRowsInARow * 24) + 24);
             }
         }
 
