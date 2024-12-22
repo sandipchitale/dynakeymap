@@ -378,7 +378,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             Shortcut[] shortcuts = entry.getValue();
             for (Shortcut shortcut : shortcuts) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                    stringBuilder.append(String.format("%4d     %-60s | %s\n", ++lineNumber, actionName, keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ")));
+                    stringBuilder.append(String.format("%4d     %-60s | %s\n", ++lineNumber, actionName, keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
                 }
             }
         }
