@@ -165,14 +165,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         JTableHeader tableHeader = dynaKeyMapTable.getTableHeader();
         Dimension tableHeaderPreferredSize = tableHeader.getPreferredSize();
         tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, 48));
-        tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns are hidden.");
+        tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns may be hidden.");
         JBTabbedPane tabbedPane = new JBTabbedPane();
         BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
 
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
 
         searchTextField = new SearchTextField();
-        searchTextField.setToolTipText("Search. NOTE: Text will match in hidden columns as well.");
+        searchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
         searchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -187,8 +187,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         });
         toolbarPanel.addToCenter(searchTextField);
 
-        JButton searchButton = new JButton(AllIcons.Actions.ShortcutFilter);
-        searchButton.setToolTipText("Search. NOTE: Text will match in hidden columns as well.   ");
+        JButton searchButton = new JButton(AllIcons.General.Filter);
+        searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.   ");
         searchButton.addActionListener((ActionEvent actionEvent) -> {
             search();
         });
