@@ -187,7 +187,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         });
         toolbarPanel.addToCenter(searchTextField);
 
-        JButton searchButton = new JButton(AllIcons.Actions.Find);
+        JButton searchButton = new JButton(AllIcons.Actions.ShortcutFilter);
         searchButton.setToolTipText("Search. NOTE: Text will match in hidden columns as well.   ");
         searchButton.addActionListener((ActionEvent actionEvent) -> {
             search();
