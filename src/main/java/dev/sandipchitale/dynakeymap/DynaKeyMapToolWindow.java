@@ -24,10 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -41,6 +38,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     private final JBTable dynaKeyMapTable;
 
     private final JBTextArea actionToShortcutTextArea;
+    private final JBTextArea unboundActionsTextArea;
 
     private static int index = 0;
     private static final int FIRST_KEYSTROKE_KEY = index++;
@@ -180,15 +178,10 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     searchTextField.setText("");
-                    tableRowSorter.setRowFilter(null);
+                    search();
                     return;
                 } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    String text = searchTextField.getText();
-                    if (text.isEmpty()) {
-                        tableRowSorter.setRowFilter(null);
-                    } else {
-                        tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
-                    }
+                    search();
                 }
             }
         });
@@ -196,13 +189,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         JButton searchButton = new JButton(AllIcons.Actions.Find);
         searchButton.setToolTipText("Search. NOTE: Text will match in hidden columns as well.   ");
-        searchButton.addActionListener(e -> {
-            String text = searchTextField.getText();
-            if (text.isEmpty()) {
-                tableRowSorter.setRowFilter(null);
-            } else {
-                tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
-            }
+        searchButton.addActionListener((ActionEvent actionEvent) -> {
+            search();
         });
         toolbarPanel.addToRight(searchButton);
 
@@ -218,6 +206,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionToShortcutTextArea = new JBTextArea();
         actionToShortcutTextArea.setEditable(false);
         tabbedPane.addTab("Action Map", ScrollPaneFactory.createScrollPane(actionToShortcutTextArea));
+
+        unboundActionsTextArea = new JBTextArea();
+        unboundActionsTextArea.setEditable(false);
+        tabbedPane.addTab("Unbound Action Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
+
 
         tabbedPane.setSelectedIndex(0);
 
@@ -236,6 +229,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     void refresh() {
         dynaKeyMapTableModel.setRowCount(0);
         actionToShortcutTextArea.setText("");
+        unboundActionsTextArea.setText("");
 
         Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
         Map<KeyStroke, java.util.List<String>> keyStrokeToActionIdMap = new HashMap<>();
@@ -261,7 +255,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
             // First stroke row
             int maxRowsInARow = 1;
-            Vector row = new Vector();
+            Vector<String> row = new Vector<>();
             row.add(key);
             row.add("");
 
@@ -303,7 +297,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             dynaKeyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
 
             maxRowsInARow = 1;
-            row = new Vector();
+            row = new Vector<>();
             row.add("");
             row.add(key);
 
@@ -352,15 +346,20 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
 
         SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
+        Set<String> unboundActionsSet = new TreeSet<>();
         for (String actionId : actionIdList) {
             AnAction action = actionManager.getAction(actionId);
             Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
+            String actionKey;
+            if (action == null || action.getTemplatePresentation().getText() == null) {
+                actionKey = actionId;
+            } else {
+                actionKey = action.getTemplatePresentation().getText();
+            }
             if (shortcuts.length > 0) {
-                if (action == null || action.getTemplatePresentation().getText() == null) {
-                    actionNameToShortcutsMap.put(actionId, shortcuts);
-                } else {
-                    actionNameToShortcutsMap.put(action.getTemplatePresentation().getText(), shortcuts);
-                }
+                actionNameToShortcutsMap.put(actionKey, shortcuts);
+            } else {
+                unboundActionsSet.add(actionKey);
             }
         }
 
@@ -368,8 +367,10 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         searchTextField.setHistory(actionHistory);
         searchTextField.setHistorySize(actionHistory.size());
 
-        int lineNumber = 0;
-        StringBuilder stringBuilder = new StringBuilder();
+        int lineNumber;
+        StringBuilder stringBuilder;
+        lineNumber = 0;
+        stringBuilder = new StringBuilder();
         stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
         stringBuilder.append(String.format("   #     %-60s | Shortcut\n", "Action"));
         stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
@@ -382,8 +383,32 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
             }
         }
+
         actionToShortcutTextArea.setText(stringBuilder.toString());
         actionToShortcutTextArea.setCaretPosition(0); // scroll to top
+
+        // Remaining unbound Actions
+        stringBuilder = new StringBuilder();
+        lineNumber = 0;
+        if (!unboundActionsSet.isEmpty()) {
+            stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
+            stringBuilder.append(String.format("   #     %-60s | \n", "Unbound Actions"));
+            stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
+            for (String actionName : unboundActionsSet) {
+                stringBuilder.append(String.format("%4d     %-60s |\n", ++lineNumber, actionName));
+            }
+        }
+        unboundActionsTextArea.setText(stringBuilder.toString());
+        unboundActionsTextArea.setCaretPosition(0); // scroll to top
+    }
+
+    private void search() {
+        String text = searchTextField.getText();
+        if (text.isEmpty()) {
+            tableRowSorter.setRowFilter(null);
+        } else {
+            tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+        }
     }
 
     private static final Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");
