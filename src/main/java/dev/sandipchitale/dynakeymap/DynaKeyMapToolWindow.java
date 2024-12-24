@@ -5,6 +5,8 @@ import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
@@ -25,6 +27,9 @@ import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -219,9 +224,13 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         final ActionManager actionManager = ActionManager.getInstance();
         ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Current Keymap and Action Map");
 
+
+        GenerateDynaKeyMapHtmlAction generateDynaKeyMapHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
+        generateDynaKeyMapHtmlAction.setDynaKeyMapToolWindow(this);
+
         DynaKeyMapRefreshAction refreshHelmExplorerAction = (DynaKeyMapRefreshAction) actionManager.getAction("DynaKeyMapRefresh");
         refreshHelmExplorerAction.setDynaKeyMapToolWindow(this);
-        Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(refreshHelmExplorerAction));
+        Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, refreshHelmExplorerAction));
 
         refresh();
     }
@@ -409,6 +418,114 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         } else {
             tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
         }
+    }
+
+    public void generateHtml() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            WriteCommandAction.runWriteCommandAction(project, () -> {
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append("<html>\n<head>\n<title>KeyMap and Action Map</title>\n");
+
+                stringBuilder.append("<meta charset=\"UTF-8\">\n");
+                stringBuilder.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
+                stringBuilder.append("<script src=\"https://cdn.tailwindcss.com\"></script>\n");
+
+                stringBuilder.append("</head>\n<body>");
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current KeyMap</div>\n");
+                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
+                stringBuilder.append("\t\t<tr>");
+                int columnCount = dynaKeyMapTableModel.getColumnCount();
+                int rowCount = dynaKeyMapTableModel.getRowCount();
+                for (int column = 0; column < columnCount; column++) {
+                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", dynaKeyMapTableModel.getColumnName(column).replace("<html>", "")));
+                }
+                stringBuilder.append("</tr>\n");
+
+                for (int row = 0; row < rowCount; row++) {
+                    stringBuilder.append("\t\t<tr>");
+                    for (int column = 0; column < columnCount; column++) {
+                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "")+ "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
+                    }
+                    stringBuilder.append("\t\t</tr>\n");
+                }
+
+                stringBuilder.append("\t</table>\n");
+
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Action Map</div>\n");
+                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
+                stringBuilder.append("\t\t<tr>\n");
+                stringBuilder.append("<th class=\"text-nowrap border p-1\">#</th>");
+                stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
+                stringBuilder.append("<th class=\"text-nowrap border p-1\">Shortcut</th>\n");
+                stringBuilder.append("\t\t</tr>\n");
+
+                Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
+                Collection<String> actionIdList = activeKeymap.getActionIdList();
+
+                ActionManager actionManager = ActionManager.getInstance();
+                SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
+                Set<String> unboundActionsSet = new TreeSet<>();
+                for (String actionId : actionIdList) {
+                    AnAction action = actionManager.getAction(actionId);
+                    Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
+                    String actionKey;
+                    if (action == null || action.getTemplatePresentation().getText() == null) {
+                        actionKey = actionId;
+                    } else {
+                        actionKey = action.getTemplatePresentation().getText();
+                    }
+                    if (shortcuts.length > 0) {
+                        actionNameToShortcutsMap.put(actionKey, shortcuts);
+                    } else {
+                        unboundActionsSet.add(actionKey);
+                    }
+                }
+
+                int lineNumber;
+                lineNumber = 0;
+                for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
+                    String actionName = entry.getKey();
+                    Shortcut[] shortcuts = entry.getValue();
+                    for (Shortcut shortcut : shortcuts) {
+                        if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
+                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                                    ++lineNumber,
+                                    actionName,
+                                    keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
+                        }
+                    }
+                }
+                stringBuilder.append("\t</table>\n");
+
+                if (!unboundActionsSet.isEmpty()) {
+                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Unbound Actions</div>\n");
+                    stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
+                    stringBuilder.append("\t\t<tr>\n");
+                    stringBuilder.append("<th class=\"text-nowrap border p-1\">#</th>");
+                    stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
+                    stringBuilder.append("\t\t</tr>\n");
+
+                    lineNumber = 0;
+                    for (String actionName : unboundActionsSet) {
+                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                                ++lineNumber,
+                                actionName));
+                    }
+                    stringBuilder.append("\t</table>\n");
+                }
+
+                stringBuilder.append("</body>");
+                stringBuilder.append("</html>");
+
+                try {
+                    Path currentKeyMapAndActionMapPath = Files.createTempFile("Current KeyMap and Action Map", ".html");
+                    Files.writeString(currentKeyMapAndActionMapPath, stringBuilder.toString());
+                    Desktop.getDesktop().browse(currentKeyMapAndActionMapPath.toUri());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
     }
 
     private static final Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");

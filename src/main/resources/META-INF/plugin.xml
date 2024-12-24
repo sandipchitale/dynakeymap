@@ -24,19 +24,20 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Show/hide columns</li>
+            <li>Generate HTML for KeyMap and Action Map.</li>
         </ul>
 
         <h2>Features</h2>
         <ul>
             <li>Display in two tabs:</li>
             <li>
-                <ol>
-                    <li>Keymap tab</li>
-                    <li>Action Map tab</li>
-                </ol>
+            <ol>
+                <li>Keymap tab</li>
+                <li>Action Map tab</li>
+            </ol>
             </li>
             <li>Current Keymap and Action Map as tool window instead of Markdown editors.</li>
+            <li>Show/hide columns</li>
         </ul>
 
         <h2>Known Issues</h2>
@@ -62,6 +63,11 @@
     </extensions>
 
     <actions>
+        <action id="GenerateDynaKeyMapHtml"
+                class="dev.sandipchitale.dynakeymap.GenerateDynaKeyMapHtmlAction"
+                text="Generate HTML"
+                icon="AllIcons.FileTypes.Html"
+                description="Generate current keymap and actionmap HTML"/>
         <action id="DynaKeyMapRefresh"
                 class="dev.sandipchitale.dynakeymap.DynaKeyMapRefreshAction"
                 text="Refresh"
