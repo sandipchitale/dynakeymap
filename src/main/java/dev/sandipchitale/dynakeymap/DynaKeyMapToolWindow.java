@@ -216,14 +216,12 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         unboundActionsTextArea.setEditable(false);
         tabbedPane.addTab("Unbound Action Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
 
-
         tabbedPane.setSelectedIndex(0);
 
         setContent(tabbedPane);
 
         final ActionManager actionManager = ActionManager.getInstance();
         ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Current Keymap and Action Map");
-
 
         GenerateDynaKeyMapHtmlAction generateDynaKeyMapHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
         generateDynaKeyMapHtmlAction.setDynaKeyMapToolWindow(this);
@@ -261,7 +259,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         ActionManager actionManager = ActionManager.getInstance();
 
         for (String key : ALL_KEYS) {
-
             // First stroke row
             int maxRowsInARow = 1;
             Vector<String> row = new Vector<>();
@@ -488,7 +485,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     Shortcut[] shortcuts = entry.getValue();
                     for (Shortcut shortcut : shortcuts) {
                         if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1" + (lineNumber % 2 == 0 ? " bg-slate-100 " : "") + "\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
                                     ++lineNumber,
                                     actionName,
                                     keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
@@ -507,7 +504,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
                     lineNumber = 0;
                     for (String actionName : unboundActionsSet) {
-                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1" + (lineNumber % 2 == 0 ? " bg-slate-100 " : "") + "\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
                                 ++lineNumber,
                                 actionName));
                     }
