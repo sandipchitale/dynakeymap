@@ -15,6 +15,7 @@ import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
@@ -25,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.table.*;
+import javax.swing.text.DefaultCaret;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.IOException;
@@ -85,7 +87,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     }
 
     private final TableRowSorter<DefaultTableModel> tableRowSorter;
+
     private final SearchTextField searchTextField;
+    private final SearchTextField searchActionMapTextField;
 
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
@@ -172,6 +176,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, 48));
         tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns may be hidden.");
         JBTabbedPane tabbedPane = new JBTabbedPane();
+
+        new JTableColumnSelector().install(dynaKeyMapTable);
+
         BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
 
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
@@ -193,7 +200,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         toolbarPanel.addToCenter(searchTextField);
 
         JButton searchButton = new JButton(AllIcons.General.Filter);
-        searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.   ");
+        searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
         searchButton.addActionListener((ActionEvent actionEvent) -> {
             search();
         });
@@ -204,17 +211,56 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(dynaKeyMapTable);
         dynaKeyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
 
-        new JTableColumnSelector().install(dynaKeyMapTable);
-
         tabbedPane.addTab("Keymap", dynaKeyMapTablePanel);
+
+        // Action Map
+        BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
+
+        BorderLayoutPanel actionMapToolbarPanel = new BorderLayoutPanel();
+
+        searchActionMapTextField = new SearchTextField();
+        searchActionMapTextField.setToolTipText("Find");
+        searchActionMapTextField.addKeyboardListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    searchActionMapTextField.setText("");
+                    searchActionMap();
+                    return;
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    searchActionMap();
+                }
+            }
+        });
+        actionMapToolbarPanel.addToCenter(searchActionMapTextField);
+
+        JButton searchActionMapButton = new JButton(AllIcons.Actions.Find);
+        searchActionMapButton.setToolTipText("Find");
+        searchActionMapButton.addActionListener((ActionEvent actionEvent) -> {
+            searchActionMap();
+        });
+        actionMapToolbarPanel.addToRight(searchActionMapButton);
+
+        actionMapTablePanel.addToTop(actionMapToolbarPanel);
 
         actionToShortcutTextArea = new JBTextArea();
         actionToShortcutTextArea.setEditable(false);
-        tabbedPane.addTab("Action Map", ScrollPaneFactory.createScrollPane(actionToShortcutTextArea));
+        actionToShortcutTextArea.setCaret(new DefaultCaret() {
+            @Override
+            public void setSelectionVisible(boolean visible) {
+                // Always show selection
+                super.setSelectionVisible(true);
+            }
+        });
+        actionToShortcutTextArea.setSelectionColor(JBColor.YELLOW);
 
+        actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionToShortcutTextArea));
+        tabbedPane.addTab("Actions Map", actionMapTablePanel);
+
+        // Unbound Actions
         unboundActionsTextArea = new JBTextArea();
         unboundActionsTextArea.setEditable(false);
-        tabbedPane.addTab("Unbound Action Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
+        tabbedPane.addTab("Unbound Actions Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
 
         tabbedPane.setSelectedIndex(0);
 
@@ -417,6 +463,29 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
     }
 
+    private void searchActionMap() {
+        String text = searchActionMapTextField.getText();
+        if (text.isEmpty()) {
+            actionToShortcutTextArea.setCaretPosition(0);
+        } else {
+            int index = actionToShortcutTextArea.getText().toLowerCase().indexOf(text.toLowerCase(), actionToShortcutTextArea.getCaretPosition());
+            if (index == -1) {
+                // Try to wrap
+                index = actionToShortcutTextArea.getText().toLowerCase().indexOf(text.toLowerCase());
+                if (index == -1) {
+                    // Not found
+                    Toolkit.getDefaultToolkit().beep();
+                } else {
+                    actionToShortcutTextArea.setCaretPosition(index);
+                    actionToShortcutTextArea.moveCaretPosition(index + text.length());
+                }
+            } else {
+                actionToShortcutTextArea.setCaretPosition(index);
+                actionToShortcutTextArea.moveCaretPosition(index + text.length());
+            }
+        }
+    }
+
     public void generateHtml() {
         ApplicationManager.getApplication().invokeLater(() -> {
             WriteCommandAction.runWriteCommandAction(project, () -> {
@@ -448,7 +517,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
                 stringBuilder.append("\t</table>\n");
 
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Action Map</div>\n");
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Actions Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                 stringBuilder.append("\t\t<tr>\n");
                 stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
@@ -495,7 +564,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("\t</table>\n");
 
                 if (!unboundActionsSet.isEmpty()) {
-                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Unbound Actions</div>\n");
+                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current unbound Actions</div>\n");
                     stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                     stringBuilder.append("\t\t<tr>\n");
                     stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
