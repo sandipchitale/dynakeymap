@@ -216,32 +216,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         // Action Map
         BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
 
-        BorderLayoutPanel actionMapToolbarPanel = new BorderLayoutPanel();
 
-        searchActionMapTextField = new SearchTextField();
-        searchActionMapTextField.setToolTipText("Find");
-        searchActionMapTextField.addKeyboardListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    searchActionMapTextField.setText("");
-                    searchActionMap();
-                    return;
-                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    searchActionMap();
-                }
-            }
-        });
-        actionMapToolbarPanel.addToCenter(searchActionMapTextField);
-
-        JButton searchActionMapButton = new JButton(AllIcons.Actions.Find);
-        searchActionMapButton.setToolTipText("Find");
-        searchActionMapButton.addActionListener((ActionEvent actionEvent) -> {
-            searchActionMap();
-        });
-        actionMapToolbarPanel.addToRight(searchActionMapButton);
-
-        actionMapTablePanel.addToTop(actionMapToolbarPanel);
 
         actionToShortcutTextArea = new JBTextArea();
         actionToShortcutTextArea.setEditable(false);
@@ -253,6 +228,34 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         });
         actionToShortcutTextArea.setSelectionColor(JBColor.YELLOW);
+
+
+        BorderLayoutPanel actionMapToolbarPanel = new BorderLayoutPanel();
+
+        searchActionMapTextField = new SearchTextField();
+        searchActionMapTextField.setToolTipText("Find");
+        searchActionMapTextField.addKeyboardListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    searchActionMapTextField.setText("");
+                    searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
+                    return;
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
+                }
+            }
+        });
+        actionMapToolbarPanel.addToCenter(searchActionMapTextField);
+
+        JButton searchActionMapButton = new JButton(AllIcons.Actions.Find);
+        searchActionMapButton.setToolTipText("Find");
+        searchActionMapButton.addActionListener((ActionEvent actionEvent) -> {
+            searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
+        });
+        actionMapToolbarPanel.addToRight(searchActionMapButton);
+
+        actionMapTablePanel.addToTop(actionMapToolbarPanel);
 
         actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionToShortcutTextArea));
         tabbedPane.addTab("Actions Map", actionMapTablePanel);
@@ -463,25 +466,25 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
     }
 
-    private void searchActionMap() {
-        String text = searchActionMapTextField.getText();
+    private void searchActionMap(SearchTextField searchTextField, JBTextArea textArea) {
+        String text = searchTextField.getText();
         if (text.isEmpty()) {
-            actionToShortcutTextArea.setCaretPosition(0);
+            textArea.setCaretPosition(0);
         } else {
-            int index = actionToShortcutTextArea.getText().toLowerCase().indexOf(text.toLowerCase(), actionToShortcutTextArea.getCaretPosition());
+            int index = textArea.getText().toLowerCase().indexOf(text.toLowerCase(), textArea.getCaretPosition());
             if (index == -1) {
                 // Try to wrap
-                index = actionToShortcutTextArea.getText().toLowerCase().indexOf(text.toLowerCase());
+                index = textArea.getText().toLowerCase().indexOf(text.toLowerCase());
                 if (index == -1) {
                     // Not found
                     Toolkit.getDefaultToolkit().beep();
                 } else {
-                    actionToShortcutTextArea.setCaretPosition(index);
-                    actionToShortcutTextArea.moveCaretPosition(index + text.length());
+                    textArea.setCaretPosition(index);
+                    textArea.moveCaretPosition(index + text.length());
                 }
             } else {
-                actionToShortcutTextArea.setCaretPosition(index);
-                actionToShortcutTextArea.moveCaretPosition(index + text.length());
+                textArea.setCaretPosition(index);
+                textArea.moveCaretPosition(index + text.length());
             }
         }
     }
