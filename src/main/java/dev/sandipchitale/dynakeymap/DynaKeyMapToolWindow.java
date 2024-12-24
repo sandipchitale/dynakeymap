@@ -454,7 +454,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Action Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                 stringBuilder.append("\t\t<tr>\n");
-                stringBuilder.append("<th class=\"text-nowrap border p-1\">#</th>");
+                stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
                 stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
                 stringBuilder.append("<th class=\"text-nowrap border p-1\">Shortcut</th>\n");
                 stringBuilder.append("\t\t</tr>\n");
@@ -488,7 +488,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     Shortcut[] shortcuts = entry.getValue();
                     for (Shortcut shortcut : shortcuts) {
                         if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
                                     ++lineNumber,
                                     actionName,
                                     keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
@@ -501,13 +501,13 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Unbound Actions</div>\n");
                     stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                     stringBuilder.append("\t\t<tr>\n");
-                    stringBuilder.append("<th class=\"text-nowrap border p-1\">#</th>");
+                    stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
                     stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
                     stringBuilder.append("\t\t</tr>\n");
 
                     lineNumber = 0;
                     for (String actionName : unboundActionsSet) {
-                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
+                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
                                 ++lineNumber,
                                 actionName));
                     }
