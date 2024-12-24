@@ -444,7 +444,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 for (int row = 0; row < rowCount; row++) {
                     stringBuilder.append("\t\t<tr>");
                     for (int column = 0; column < columnCount; column++) {
-                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "")+ "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
+                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
                     }
                     stringBuilder.append("\t\t</tr>\n");
                 }
