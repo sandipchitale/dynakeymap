@@ -30,9 +30,12 @@ import javax.swing.table.*;
 import javax.swing.text.DefaultCaret;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -505,11 +508,20 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
                 stringBuilder.append("</head>\n<body>");
 
+                String splashImageUrl;
                 ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
-
-                String splashImageUrl = applicationInfo.getSplashImageUrl();
-                if (splashImageUrl == null) {
-                    stringBuilder.append("<div class=\"text-center p-4\"><img src=\"" + splashImageUrl + "\"></img></div>\n");
+                splashImageUrl = applicationInfo.getSplashImageUrl();
+                if (splashImageUrl != null) {
+                    URL resourceUrl = ApplicationInfo.class.getResource(splashImageUrl);
+                    if (resourceUrl != null) {
+                        try {
+                            Path splashImagePath = Files.createTempFile("splash", ".png");
+                            Files.copy(resourceUrl.openStream(), splashImagePath, StandardCopyOption.REPLACE_EXISTING);
+                            stringBuilder.append("<div class=\"p-4\"><img src=\"" + convertFileToDataUrl(splashImagePath.toFile()) + "\"></img></div>\n");
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
                 }
 
                 stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() +  " )</div>\n");
@@ -519,7 +531,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
                 String formattedDate = zonedDateTime.format(formatter);
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">As of: " + formattedDate +  "</div>\n");
+                stringBuilder.append("<div class=\"text-bold p-4\">As of: " + formattedDate +  "</div>\n");
 
                 stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Actions Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
@@ -622,5 +634,13 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     private static String kbdfy(String keys) {
         return KEY_MATCHER.matcher(keys).replaceAll("<nobr><code>[ $1 ]</code></nobr>").trim();
+    }
+
+    static String convertFileToDataUrl(File file) throws IOException {
+        byte[] fileContent = Files.readAllBytes(file.toPath());
+        String base64 = Base64.getEncoder().encodeToString(fileContent);
+        String mimeType = Files.probeContentType(file.toPath());
+
+        return "data:images/png;base64," + base64;
     }
 }
