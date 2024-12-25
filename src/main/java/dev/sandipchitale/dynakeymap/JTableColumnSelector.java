@@ -56,6 +56,9 @@ class JTableColumnSelector {
         menuItem.addActionListener(action -> {
             setColumnVisible(modelIndex, menuItem.isSelected());
         });
+        if (modelIndex  < 2) {
+            menuItem.setEnabled(false);
+        }
         menuItem.setPreferredSize(new Dimension(menuItem.getPreferredSize().width, 30));
         return menuItem;
     }

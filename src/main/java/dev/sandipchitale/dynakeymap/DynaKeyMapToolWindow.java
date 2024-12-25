@@ -500,23 +500,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("<script src=\"https://cdn.tailwindcss.com\"></script>\n");
 
                 stringBuilder.append("</head>\n<body>");
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current KeyMap</div>\n");
-                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
-                stringBuilder.append("\t\t<tr>");
-                int columnCount = dynaKeyMapTableModel.getColumnCount();
-                int rowCount = dynaKeyMapTableModel.getRowCount();
-                for (int column = 0; column < columnCount; column++) {
-                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", dynaKeyMapTableModel.getColumnName(column).replace("<html>", "")));
-                }
-                stringBuilder.append("</tr>\n");
 
-                for (int row = 0; row < rowCount; row++) {
-                    stringBuilder.append("\t\t<tr>");
-                    for (int column = 0; column < columnCount; column++) {
-                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
-                    }
-                    stringBuilder.append("\t\t</tr>\n");
-                }
 
                 stringBuilder.append("\t</table>\n");
 
@@ -565,6 +549,24 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     }
                 }
                 stringBuilder.append("\t</table>\n");
+
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current KeyMap</div>\n");
+                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
+                stringBuilder.append("\t\t<tr>");
+                int columnCount = dynaKeyMapTableModel.getColumnCount();
+                int rowCount = dynaKeyMapTableModel.getRowCount();
+                for (int column = 0; column < columnCount; column++) {
+                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", dynaKeyMapTableModel.getColumnName(column).replace("<html>", "")));
+                }
+                stringBuilder.append("</tr>\n");
+
+                for (int row = 0; row < rowCount; row++) {
+                    stringBuilder.append("\t\t<tr>");
+                    for (int column = 0; column < columnCount; column++) {
+                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
+                    }
+                    stringBuilder.append("\t\t</tr>\n");
+                }
 
                 if (!unboundActionsSet.isEmpty()) {
                     stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current unbound Actions</div>\n");
