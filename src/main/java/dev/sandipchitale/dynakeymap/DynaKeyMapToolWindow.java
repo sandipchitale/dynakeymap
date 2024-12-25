@@ -507,6 +507,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
                 ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
 
+                String splashImageUrl = applicationInfo.getSplashImageUrl();
+                if (splashImageUrl == null) {
+                    stringBuilder.append("<div class=\"text-center p-4\"><img src=\"" + splashImageUrl + "\"></img></div>\n");
+                }
+
                 stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() +  " )</div>\n");
 
                 Date date = new Date();
