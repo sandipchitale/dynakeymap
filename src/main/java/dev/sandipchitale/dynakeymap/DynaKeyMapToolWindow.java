@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.diagnostic.Logger;
@@ -32,6 +33,9 @@ import java.awt.event.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -501,8 +505,16 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
                 stringBuilder.append("</head>\n<body>");
 
+                ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
 
-                stringBuilder.append("\t</table>\n");
+                stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() +  " )</div>\n");
+
+                Date date = new Date();
+                Instant instant = date.toInstant();
+                ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
+                String formattedDate = zonedDateTime.format(formatter);
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">As of: " + formattedDate +  "</div>\n");
 
                 stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Actions Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
@@ -567,6 +579,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     }
                     stringBuilder.append("\t\t</tr>\n");
                 }
+
+                stringBuilder.append("\t</table>\n");
 
                 if (!unboundActionsSet.isEmpty()) {
                     stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current unbound Actions</div>\n");
