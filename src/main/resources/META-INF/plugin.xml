@@ -24,7 +24,7 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Generate HTML for KeyMap and Action Map.</li>
+            <li>Use table for action map.</li>
         </ul>
 
         <h2>Features</h2>
@@ -38,6 +38,7 @@
             </li>
             <li>Current Keymap and Action Map as tool window instead of Markdown editors.</li>
             <li>Show/hide columns</li>
+            <li>Generate HTML for KeyMap and Action Map.</li>
         </ul>
 
         <h2>Known Issues</h2>
