@@ -8,7 +8,6 @@ import com.intellij.openapi.actionSystem.Shortcut;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.project.Project;
@@ -16,7 +15,6 @@ import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
-import com.intellij.ui.JBColor;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
@@ -27,7 +25,6 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.table.*;
-import javax.swing.text.DefaultCaret;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
@@ -36,22 +33,20 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.text.SimpleDateFormat;
-import java.time.*;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
 
 public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
-    private static final Logger LOG = Logger.getInstance(DynaKeyMapToolWindow.class);
-
 
     private final Project project;
-    private final DefaultTableModel dynaKeyMapTableModel;
-    private final JBTable dynaKeyMapTable;
+    private final DefaultTableModel keyMapTableModel;
+    private final JBTable keyMapTable;
 
-    private final JBTextArea actionToShortcutTextArea;
     private final JBTextArea unboundActionsTextArea;
 
     private static int index = 0;
@@ -85,18 +80,36 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
     }
 
-    private static final String[] COLUMNS = new String[index + MODIFIERS.length];
+    private static final String[] KEYMAP_COLUMNS = new String[index + MODIFIERS.length];
 
     static {
-        COLUMNS[FIRST_KEYSTROKE_KEY] = "Key in First Keystroke ";
-        COLUMNS[SECOND_KEYSTROKE_KEY] = "Key in Second Keystroke";
-        System.arraycopy(MODIFIERS, 0, COLUMNS, index, MODIFIERS.length);
+        KEYMAP_COLUMNS[FIRST_KEYSTROKE_KEY] = "Key in First Keystroke";
+        KEYMAP_COLUMNS[SECOND_KEYSTROKE_KEY] = "Key in Second Keystroke";
+        System.arraycopy(MODIFIERS, 0, KEYMAP_COLUMNS, index, MODIFIERS.length);
     }
 
-    private final TableRowSorter<DefaultTableModel> tableRowSorter;
+    private final TableRowSorter<DefaultTableModel> dynaKeyMapTableRowSorter;
 
-    private final SearchTextField searchTextField;
-    private final SearchTextField searchActionMapTextField;
+    private final SearchTextField dynaKeyMapSearchTextField;
+
+    private static final int ACTION_COLUMN = 0;
+    private static final int SHORTCUT_COLUMN = 1;
+
+
+    private static final String[] ACTIONMAP_COLUMNS = new String[2];
+
+    static {
+        ACTIONMAP_COLUMNS[ACTION_COLUMN] = "Action";
+        ACTIONMAP_COLUMNS[SHORTCUT_COLUMN] = "Shortcut";
+        System.arraycopy(MODIFIERS, 0, KEYMAP_COLUMNS, index, MODIFIERS.length);
+    }
+
+    private final DefaultTableModel actionMapTableModel;
+    private final JBTable actionMapTable;
+
+    private final TableRowSorter<DefaultTableModel> actionMapTableRowSorter;
+
+    private final SearchTextField actionMapSearchTextField;
 
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
@@ -105,8 +118,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         super(true, true);
         this.project = project;
 
-        dynaKeyMapTableModel = new DefaultTableModel(COLUMNS, 0) {
+        JBTabbedPane tabbedPane = new JBTabbedPane();
 
+        keyMapTableModel = new DefaultTableModel(KEYMAP_COLUMNS, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return String.class;
@@ -114,7 +128,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
             @Override
             public Object getValueAt(int row, int column) {
-                Vector rowVector = dataVector.get(row);
+                Vector<String> rowVector = dataVector.get(row);
                 if (column == FIRST_KEYSTROKE_KEY) {
                     return rowVector.get(FIRST_KEYSTROKE_KEY);
                 } else if (column == SECOND_KEYSTROKE_KEY) {
@@ -124,7 +138,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
             }
         };
-        dynaKeyMapTable = new JBTable(dynaKeyMapTableModel) {
+
+        keyMapTable = new JBTable(keyMapTableModel) {
             @Override
             public String getToolTipText(@NotNull MouseEvent event) {
                 Point p = event.getPoint();
@@ -135,87 +150,86 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         };
 
-        dynaKeyMapTable.addMouseListener(new MouseAdapter() {
+        keyMapTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent mouseEvent) {
-                if (mouseEvent.isAltDown() && mouseEvent.getClickCount() == 2) {
-                    Point p = mouseEvent.getPoint();
-                    int column = dynaKeyMapTable.columnAtPoint(p);
-                    int row = dynaKeyMapTable.rowAtPoint(p);
-                }
-
+            if (mouseEvent.isAltDown() && mouseEvent.getClickCount() == 2) {
+                Point p = mouseEvent.getPoint();
+                int column = keyMapTable.columnAtPoint(p);
+                int row = keyMapTable.rowAtPoint(p);
+            }
             }
         });
 
-        TableCellRenderer dynaKeyMapTableCellRenderer = new DefaultTableCellRenderer() {
+        TableCellRenderer keyMapTableCellRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                if (column == FIRST_KEYSTROKE_KEY || column == SECOND_KEYSTROKE_KEY) {
-                    String keyValue = (String) value;
-                    if (!keyValue.isEmpty()) {
-                        label.setText(String.format("<html>%s", kbdfy(keyValue)));
-                    }
+            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (column == FIRST_KEYSTROKE_KEY || column == SECOND_KEYSTROKE_KEY) {
+                String keyValue = (String) value;
+                if (!keyValue.isEmpty()) {
+                    label.setText(String.format("<html>%s", kbdfy(keyValue)));
                 }
+            }
 
-                return label;
+            return label;
             }
         };
-        tableRowSorter = new TableRowSorter<>(dynaKeyMapTableModel);
-        dynaKeyMapTable.setRowSorter(tableRowSorter);
+
+        dynaKeyMapTableRowSorter = new TableRowSorter<>(keyMapTableModel);
+        keyMapTable.setRowSorter(dynaKeyMapTableRowSorter);
 
         TableColumn column;
 
-        column = dynaKeyMapTable.getColumnModel().getColumn(FIRST_KEYSTROKE_KEY);
+        column = keyMapTable.getColumnModel().getColumn(FIRST_KEYSTROKE_KEY);
         column.setMinWidth(250);
         column.setWidth(250);
         column.setMaxWidth(250);
-        column.setCellRenderer(dynaKeyMapTableCellRenderer);
+        column.setCellRenderer(keyMapTableCellRenderer);
 
-        column = dynaKeyMapTable.getColumnModel().getColumn(SECOND_KEYSTROKE_KEY);
+        column = keyMapTable.getColumnModel().getColumn(SECOND_KEYSTROKE_KEY);
         column.setMinWidth(250);
         column.setWidth(250);
         column.setMaxWidth(250);
-        column.setCellRenderer(dynaKeyMapTableCellRenderer);
+        column.setCellRenderer(keyMapTableCellRenderer);
 
-        JTableHeader tableHeader = dynaKeyMapTable.getTableHeader();
+        JTableHeader tableHeader = keyMapTable.getTableHeader();
         Dimension tableHeaderPreferredSize = tableHeader.getPreferredSize();
         tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, 48));
         tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns may be hidden.");
-        JBTabbedPane tabbedPane = new JBTabbedPane();
 
-        new JTableColumnSelector().install(dynaKeyMapTable);
+        new JTableColumnSelector().install(keyMapTable);
 
         BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
 
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
 
-        searchTextField = new SearchTextField();
-        searchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
-        searchTextField.addKeyboardListener(new KeyAdapter() {
+        dynaKeyMapSearchTextField = new SearchTextField();
+        dynaKeyMapSearchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
+        dynaKeyMapSearchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    searchTextField.setText("");
-                    search();
-                    return;
-                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    search();
-                }
+            if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                dynaKeyMapSearchTextField.setText("");
+                search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
+                return;
+            } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
+            }
             }
         });
-        toolbarPanel.addToCenter(searchTextField);
+        toolbarPanel.addToCenter(dynaKeyMapSearchTextField);
 
         JButton searchButton = new JButton(AllIcons.General.Filter);
         searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
         searchButton.addActionListener((ActionEvent actionEvent) -> {
-            search();
+            search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
         });
         toolbarPanel.addToRight(searchButton);
 
         dynaKeyMapTablePanel.addToTop(toolbarPanel);
 
-        JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(dynaKeyMapTable);
+        JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(keyMapTable);
         dynaKeyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
 
         tabbedPane.addTab("Keymap", dynaKeyMapTablePanel);
@@ -223,48 +237,67 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         // Action Map
         BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
 
-
-
-        actionToShortcutTextArea = new JBTextArea();
-        actionToShortcutTextArea.setEditable(false);
-        actionToShortcutTextArea.setCaret(new DefaultCaret() {
+        actionMapTableModel = new DefaultTableModel(ACTIONMAP_COLUMNS, 0) {
             @Override
-            public void setSelectionVisible(boolean visible) {
-                // Always show selection
-                super.setSelectionVisible(true);
+            public Class<?> getColumnClass(int columnIndex) {
+                return String.class;
             }
-        });
-        actionToShortcutTextArea.setSelectionColor(JBColor.YELLOW);
 
+            @Override
+            public Object getValueAt(int row, int column) {
+                Vector rowVector = dataVector.get(row);
+                if (column == ACTION_COLUMN) {
+                    return rowVector.get(ACTION_COLUMN);
+                } else if (column == SHORTCUT_COLUMN) {
+                    return rowVector.get(SHORTCUT_COLUMN);
+                } else {
+                    return rowVector.get(column);
+                }
+            }
+        };
+        actionMapTable = new JBTable(actionMapTableModel) {
+            @Override
+            public String getToolTipText(@NotNull MouseEvent event) {
+                Point p = event.getPoint();
+                // Locate the renderer under the event location
+                int row = rowAtPoint(p);
+                int column = columnAtPoint(p);
+                return super.getToolTipText(event);
+            }
+        };
+
+        actionMapTableRowSorter = new TableRowSorter<>(actionMapTableModel);
+        actionMapTable.setRowSorter(actionMapTableRowSorter);
 
         BorderLayoutPanel actionMapToolbarPanel = new BorderLayoutPanel();
 
-        searchActionMapTextField = new SearchTextField();
-        searchActionMapTextField.setToolTipText("Find");
-        searchActionMapTextField.addKeyboardListener(new KeyAdapter() {
+        actionMapSearchTextField = new SearchTextField();
+        actionMapSearchTextField.setToolTipText("Search");
+        actionMapSearchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    searchActionMapTextField.setText("");
-                    searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
-                    return;
-                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
-                }
+            if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                actionMapSearchTextField.setText("");
+                search(actionMapSearchTextField, actionMapTableRowSorter);
+                return;
+            } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                search(actionMapSearchTextField, actionMapTableRowSorter);
+            }
             }
         });
-        actionMapToolbarPanel.addToCenter(searchActionMapTextField);
+        actionMapToolbarPanel.addToCenter(actionMapSearchTextField);
 
         JButton searchActionMapButton = new JButton(AllIcons.Actions.Find);
-        searchActionMapButton.setToolTipText("Find");
+        searchActionMapButton.setToolTipText("Search");
         searchActionMapButton.addActionListener((ActionEvent actionEvent) -> {
-            searchActionMap(searchActionMapTextField, actionToShortcutTextArea);
+            search(actionMapSearchTextField, actionMapTableRowSorter);
         });
         actionMapToolbarPanel.addToRight(searchActionMapButton);
 
         actionMapTablePanel.addToTop(actionMapToolbarPanel);
 
-        actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionToShortcutTextArea));
+        actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionMapTable));
+
         tabbedPane.addTab("Actions Map", actionMapTablePanel);
 
         // Unbound Actions
@@ -272,7 +305,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         unboundActionsTextArea.setEditable(false);
         tabbedPane.addTab("Unbound Actions Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
 
-        tabbedPane.setSelectedIndex(0);
+        tabbedPane.setSelectedIndex(1);
 
         setContent(tabbedPane);
 
@@ -290,8 +323,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     }
 
     void refresh() {
-        dynaKeyMapTableModel.setRowCount(0);
-        actionToShortcutTextArea.setText("");
+        keyMapTableModel.setRowCount(0);
+        actionMapTableModel.setRowCount(0);
         unboundActionsTextArea.setText("");
 
         Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
@@ -354,9 +387,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     // No need to adjust maxRowsInARow
                 }
             }
-            dynaKeyMapTableModel.addRow(row);
-            int lastRow = dynaKeyMapTableModel.getRowCount() - 1;
-            dynaKeyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
+            keyMapTableModel.addRow(row);
+            int lastRow = keyMapTableModel.getRowCount() - 1;
+            keyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
 
             maxRowsInARow = 1;
             row = new Vector<>();
@@ -401,9 +434,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
             }
             if (addRowForSecondStroke) {
-                dynaKeyMapTableModel.addRow(row); //
-                int lastRowForSecondKeyStrokeRow = dynaKeyMapTableModel.getRowCount() - 1;
-                dynaKeyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow, (maxRowsInARow * 24) + 24);
+                keyMapTableModel.addRow(row); //
+                int lastRowForSecondKeyStrokeRow = keyMapTableModel.getRowCount() - 1;
+                keyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow, (maxRowsInARow * 24) + 24);
             }
         }
 
@@ -426,32 +459,28 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
 
         List<String> actionHistory = actionNameToShortcutsMap.keySet().stream().filter((String s) -> s.length() > 1).toList();
-        searchTextField.setHistory(actionHistory);
-        searchTextField.setHistorySize(actionHistory.size());
+        dynaKeyMapSearchTextField.setHistory(actionHistory);
+        dynaKeyMapSearchTextField.setHistorySize(actionHistory.size());
 
-        int lineNumber;
-        StringBuilder stringBuilder;
-        lineNumber = 0;
-        stringBuilder = new StringBuilder();
-        stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
-        stringBuilder.append(String.format("   #     %-60s | Shortcut\n", "Action"));
-        stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
         for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
             String actionName = entry.getKey();
             Shortcut[] shortcuts = entry.getValue();
             for (Shortcut shortcut : shortcuts) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                    stringBuilder.append(String.format("%4d     %-60s | %s\n", ++lineNumber, actionName, keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
+                    Vector<String> row = new Vector<>();
+                    row.add(actionName);
+                    row.add(keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]"));
+                    actionMapTableModel.addRow(row);
                 }
             }
         }
-
-        actionToShortcutTextArea.setText(stringBuilder.toString());
-        actionToShortcutTextArea.setCaretPosition(0); // scroll to top
+        actionMapSearchTextField.setHistory(actionHistory);
+        actionMapSearchTextField.setHistorySize(actionHistory.size());
 
         // Remaining unbound Actions
-        stringBuilder = new StringBuilder();
-        lineNumber = 0;
+        StringBuilder stringBuilder = new StringBuilder();
+
+        int lineNumber = 0;
         if (!unboundActionsSet.isEmpty()) {
             stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
             stringBuilder.append(String.format("   #     %-60s | \n", "Unbound Actions"));
@@ -464,35 +493,12 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         unboundActionsTextArea.setCaretPosition(0); // scroll to top
     }
 
-    private void search() {
+    private void search(SearchTextField searchTextField, TableRowSorter<DefaultTableModel> tableRowSorter) {
         String text = searchTextField.getText();
         if (text.isEmpty()) {
             tableRowSorter.setRowFilter(null);
         } else {
             tableRowSorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
-        }
-    }
-
-    private void searchActionMap(SearchTextField searchTextField, JBTextArea textArea) {
-        String text = searchTextField.getText();
-        if (text.isEmpty()) {
-            textArea.setCaretPosition(0);
-        } else {
-            int index = textArea.getText().toLowerCase().indexOf(text.toLowerCase(), textArea.getCaretPosition());
-            if (index == -1) {
-                // Try to wrap
-                index = textArea.getText().toLowerCase().indexOf(text.toLowerCase());
-                if (index == -1) {
-                    // Not found
-                    Toolkit.getDefaultToolkit().beep();
-                } else {
-                    textArea.setCaretPosition(index);
-                    textArea.moveCaretPosition(index + text.length());
-                }
-            } else {
-                textArea.setCaretPosition(index);
-                textArea.moveCaretPosition(index + text.length());
-            }
         }
     }
 
@@ -524,14 +530,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     }
                 }
 
-                stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() +  " )</div>\n");
+                stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() + " )</div>\n");
 
                 Date date = new Date();
                 Instant instant = date.toInstant();
                 ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
                 String formattedDate = zonedDateTime.format(formatter);
-                stringBuilder.append("<div class=\"text-bold p-4\">As of: " + formattedDate +  "</div>\n");
+                stringBuilder.append("<div class=\"text-bold p-4\">As of: " + formattedDate + "</div>\n");
 
                 stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Actions Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
@@ -582,17 +588,17 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current KeyMap</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                 stringBuilder.append("\t\t<tr>");
-                int columnCount = dynaKeyMapTableModel.getColumnCount();
-                int rowCount = dynaKeyMapTableModel.getRowCount();
+                int columnCount = keyMapTableModel.getColumnCount();
+                int rowCount = keyMapTableModel.getRowCount();
                 for (int column = 0; column < columnCount; column++) {
-                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", dynaKeyMapTableModel.getColumnName(column).replace("<html>", "")));
+                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", keyMapTableModel.getColumnName(column).replace("<html>", "")));
                 }
                 stringBuilder.append("</tr>\n");
 
                 for (int row = 0; row < rowCount; row++) {
                     stringBuilder.append("\t\t<tr>");
                     for (int column = 0; column < columnCount; column++) {
-                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(dynaKeyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
+                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(keyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
                     }
                     stringBuilder.append("\t\t</tr>\n");
                 }
