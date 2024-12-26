@@ -44,10 +44,9 @@ import java.util.regex.Pattern;
 public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     private final Project project;
+
     private final DefaultTableModel keyMapTableModel;
     private final JBTable keyMapTable;
-
-    private final JBTextArea unboundActionsTextArea;
 
     private static int index = 0;
     private static final int FIRST_KEYSTROKE_KEY = index++;
@@ -95,13 +94,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     private static final int ACTION_COLUMN = 0;
     private static final int SHORTCUT_COLUMN = 1;
 
-
     private static final String[] ACTIONMAP_COLUMNS = new String[2];
 
     static {
         ACTIONMAP_COLUMNS[ACTION_COLUMN] = "Action";
         ACTIONMAP_COLUMNS[SHORTCUT_COLUMN] = "Shortcut";
-        System.arraycopy(MODIFIERS, 0, KEYMAP_COLUMNS, index, MODIFIERS.length);
     }
 
     private final DefaultTableModel actionMapTableModel;
@@ -300,11 +297,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         tabbedPane.addTab("Actions Map", actionMapTablePanel);
 
-        // Unbound Actions
-        unboundActionsTextArea = new JBTextArea();
-        unboundActionsTextArea.setEditable(false);
-        tabbedPane.addTab("Unbound Actions Map", ScrollPaneFactory.createScrollPane(unboundActionsTextArea));
-
         tabbedPane.setSelectedIndex(1);
 
         setContent(tabbedPane);
@@ -325,7 +317,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     void refresh() {
         keyMapTableModel.setRowCount(0);
         actionMapTableModel.setRowCount(0);
-        unboundActionsTextArea.setText("");
 
         Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
         Map<KeyStroke, java.util.List<String>> keyStrokeToActionIdMap = new HashMap<>();
@@ -478,19 +469,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionMapSearchTextField.setHistorySize(actionHistory.size());
 
         // Remaining unbound Actions
-        StringBuilder stringBuilder = new StringBuilder();
-
-        int lineNumber = 0;
         if (!unboundActionsSet.isEmpty()) {
-            stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
-            stringBuilder.append(String.format("   #     %-60s | \n", "Unbound Actions"));
-            stringBuilder.append(String.format("---------%-60s---%s\n", "-".repeat(60), "-".repeat(60)));
             for (String actionName : unboundActionsSet) {
-                stringBuilder.append(String.format("%4d     %-60s |\n", ++lineNumber, actionName));
+                Vector<String> row = new Vector<>();
+                row.add(actionName);
+                row.add("");
+                actionMapTableModel.addRow(row);
             }
         }
-        unboundActionsTextArea.setText(stringBuilder.toString());
-        unboundActionsTextArea.setCaretPosition(0); // scroll to top
     }
 
     private void search(SearchTextField searchTextField, TableRowSorter<DefaultTableModel> tableRowSorter) {
