@@ -18,7 +18,6 @@ import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
-import com.intellij.ui.components.JBTextArea;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import org.jetbrains.annotations.NotNull;
@@ -87,9 +86,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         System.arraycopy(MODIFIERS, 0, KEYMAP_COLUMNS, index, MODIFIERS.length);
     }
 
-    private final TableRowSorter<DefaultTableModel> dynaKeyMapTableRowSorter;
+    private final TableRowSorter<DefaultTableModel> keyMapTableRowSorter;
 
-    private final SearchTextField dynaKeyMapSearchTextField;
+    private final SearchTextField keyMapSearchTextField;
 
     private static final int ACTION_COLUMN = 0;
     private static final int SHORTCUT_COLUMN = 1;
@@ -173,8 +172,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         };
 
-        dynaKeyMapTableRowSorter = new TableRowSorter<>(keyMapTableModel);
-        keyMapTable.setRowSorter(dynaKeyMapTableRowSorter);
+        keyMapTableRowSorter = new TableRowSorter<>(keyMapTableModel);
+        keyMapTable.setRowSorter(keyMapTableRowSorter);
 
         TableColumn column;
 
@@ -197,39 +196,39 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         new JTableColumnSelector().install(keyMapTable);
 
-        BorderLayoutPanel dynaKeyMapTablePanel = new BorderLayoutPanel();
+        BorderLayoutPanel keyMapTablePanel = new BorderLayoutPanel();
 
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
 
-        dynaKeyMapSearchTextField = new SearchTextField();
-        dynaKeyMapSearchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
-        dynaKeyMapSearchTextField.addKeyboardListener(new KeyAdapter() {
+        keyMapSearchTextField = new SearchTextField();
+        keyMapSearchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
+        keyMapSearchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
             if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                dynaKeyMapSearchTextField.setText("");
-                search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
+                keyMapSearchTextField.setText("");
+                search(keyMapSearchTextField, keyMapTableRowSorter);
                 return;
             } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
+                search(keyMapSearchTextField, keyMapTableRowSorter);
             }
             }
         });
-        toolbarPanel.addToCenter(dynaKeyMapSearchTextField);
+        toolbarPanel.addToCenter(keyMapSearchTextField);
 
         JButton searchButton = new JButton(AllIcons.General.Filter);
         searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
         searchButton.addActionListener((ActionEvent actionEvent) -> {
-            search(dynaKeyMapSearchTextField, dynaKeyMapTableRowSorter);
+            search(keyMapSearchTextField, keyMapTableRowSorter);
         });
         toolbarPanel.addToRight(searchButton);
 
-        dynaKeyMapTablePanel.addToTop(toolbarPanel);
+        keyMapTablePanel.addToTop(toolbarPanel);
 
         JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(keyMapTable);
-        dynaKeyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
+        keyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
 
-        tabbedPane.addTab("Keymap", dynaKeyMapTablePanel);
+        tabbedPane.addTab("Keymap", keyMapTablePanel);
 
         // Action Map
         BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
@@ -450,8 +449,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
 
         List<String> actionHistory = actionNameToShortcutsMap.keySet().stream().filter((String s) -> s.length() > 1).toList();
-        dynaKeyMapSearchTextField.setHistory(actionHistory);
-        dynaKeyMapSearchTextField.setHistorySize(actionHistory.size());
+        keyMapSearchTextField.setHistory(actionHistory);
+        keyMapSearchTextField.setHistorySize(actionHistory.size());
 
         for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
             String actionName = entry.getKey();
