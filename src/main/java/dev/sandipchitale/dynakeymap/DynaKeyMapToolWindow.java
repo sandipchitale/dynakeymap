@@ -100,12 +100,15 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         ACTIONMAP_COLUMNS[SHORTCUT_COLUMN] = "Shortcut";
     }
 
+    private final JBTabbedPane tabbedPane;
+
     private final DefaultTableModel actionMapTableModel;
     private final JBTable actionMapTable;
 
     private final TableRowSorter<DefaultTableModel> actionMapTableRowSorter;
 
     private final SearchTextField actionMapSearchTextField;
+
 
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
@@ -114,7 +117,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         super(true, true);
         this.project = project;
 
-        JBTabbedPane tabbedPane = new JBTabbedPane();
+        tabbedPane = new JBTabbedPane();
 
         keyMapTableModel = new DefaultTableModel(KEYMAP_COLUMNS, 0) {
             @Override
@@ -318,6 +321,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionMapTableModel.setRowCount(0);
 
         Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
+
+        tabbedPane.setTitleAt(0, "Keymap: %s".formatted(activeKeymap.getName()));
+
         Map<KeyStroke, java.util.List<String>> keyStrokeToActionIdMap = new HashMap<>();
         Map<KeyStroke, java.util.List<FirstKeyStrokeAndActionId>> secondStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
         Collection<String> actionIdList = activeKeymap.getActionIdList();

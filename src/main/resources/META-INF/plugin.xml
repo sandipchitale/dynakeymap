@@ -24,11 +24,12 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Use table for action map.</li>
+            <li>Shows Keymap name.</li>
         </ul>
 
         <h2>Features</h2>
         <ul>
+            <li>Use table for action map.</li>
             <li>Display in two tabs:</li>
             <li>
             <ol>
