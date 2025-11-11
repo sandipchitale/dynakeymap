@@ -214,8 +214,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         keymapsComboBoxModel.setSelectedItem(keymapManager.getActiveKeymap().getName());
         keymapsComboBox = new ComboBox<>(keymapsComboBoxModel);
         keymapsComboBox.setMinimumAndPreferredWidth(300);
-        keymapsComboBox.addActionListener((ActionEvent actionEvent) -> refresh());
-
         toolbarPanel.addToLeft(keymapsComboBox);
 
         keyMapSearchTextField = new SearchTextField();
@@ -329,6 +327,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, refreshHelmExplorerAction));
 
         refresh();
+
+        keymapsComboBox.addActionListener((ActionEvent actionEvent) -> refresh());
     }
 
     void refresh() {
