@@ -10,7 +10,9 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
+import com.intellij.openapi.keymap.ex.KeymapManagerEx;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -107,9 +109,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     private final TableRowSorter<DefaultTableModel> actionMapTableRowSorter;
 
+
+    private final DefaultComboBoxModel<String> keymapsComboBoxModel;
+    private final ComboBox<String> keymapsComboBox;
     private final SearchTextField actionMapSearchTextField;
-
-
+    
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
 
@@ -202,6 +206,17 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         BorderLayoutPanel keyMapTablePanel = new BorderLayoutPanel();
 
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
+
+        keymapsComboBoxModel = new DefaultComboBoxModel<>();
+        KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
+        Keymap[] allKeymaps = keymapManager.getAllKeymaps();
+        keymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).map(Keymap::getName).toList());
+        keymapsComboBoxModel.setSelectedItem(keymapManager.getActiveKeymap().getName());
+        keymapsComboBox = new ComboBox<>(keymapsComboBoxModel);
+        keymapsComboBox.setMinimumAndPreferredWidth(300);
+        keymapsComboBox.addActionListener((ActionEvent actionEvent) -> refresh());
+
+        toolbarPanel.addToLeft(keymapsComboBox);
 
         keyMapSearchTextField = new SearchTextField();
         keyMapSearchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
@@ -319,16 +334,26 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     void refresh() {
         keyMapTableModel.setRowCount(0);
         actionMapTableModel.setRowCount(0);
+        String selectedKeymapName = String.valueOf(keymapsComboBoxModel.getSelectedItem());
+        keymapsComboBoxModel.removeAllElements();;
 
-        Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
+        KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
+        Keymap selectedKeymap = keymapManager.getKeymap(selectedKeymapName);
+        if (selectedKeymap == null) {
+            selectedKeymap = keymapManager.getActiveKeymap();
+        }
 
-        tabbedPane.setTitleAt(0, "Keymap: %s".formatted(activeKeymap.getName()));
+        tabbedPane.setTitleAt(0, "Keymap: %s".formatted(selectedKeymap.getName()));
+
+        Keymap[] allKeymaps = keymapManager.getAllKeymaps();
+        keymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).map(Keymap::getName).toList());
+        keymapsComboBoxModel.setSelectedItem(selectedKeymap.getName());
 
         Map<KeyStroke, java.util.List<String>> keyStrokeToActionIdMap = new HashMap<>();
         Map<KeyStroke, java.util.List<FirstKeyStrokeAndActionId>> secondStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
-        Collection<String> actionIdList = activeKeymap.getActionIdList();
+        Collection<String> actionIdList = selectedKeymap.getActionIdList();
         for (String actionId : actionIdList) {
-            Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
+            Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
             for (Shortcut shortcut : shortcuts) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
                     KeyStroke firstKeyStroke = keyboardShortcut.getFirstKeyStroke();
@@ -440,7 +465,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         Set<String> unboundActionsSet = new TreeSet<>();
         for (String actionId : actionIdList) {
             AnAction action = actionManager.getAction(actionId);
-            Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
+            Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
             String actionKey;
             if (action == null || action.getTemplatePresentation().getText() == null) {
                 actionKey = actionId;
@@ -576,7 +601,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 }
                 stringBuilder.append("\t</table>\n");
 
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current KeyMap</div>\n");
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">").append(keymapsComboBoxModel.getSelectedItem()).append(" KeyMap</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                 stringBuilder.append("\t\t<tr>");
                 int columnCount = keyMapTableModel.getColumnCount();
