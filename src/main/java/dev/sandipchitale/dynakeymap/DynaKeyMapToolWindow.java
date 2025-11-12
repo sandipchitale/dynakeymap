@@ -25,6 +25,10 @@ import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import org.jetbrains.annotations.NotNull;
 
+import com.intellij.diff.DiffManager;
+import com.intellij.diff.DiffContentFactory;
+import com.intellij.diff.requests.SimpleDiffRequest;
+
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
@@ -226,7 +230,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         keymapsPanel.add(keymapsComboBox);
 
         JButton diffKeymapsButton = new JButton(" <- Compare Keymaps -> ");
-        diffKeymapsButton.addActionListener(e -> Messages.showWarningDialog("Compare Keymaps - coming soon.", "Compare Keymaps"));
+        diffKeymapsButton.addActionListener(e -> compareSelectedKeymaps());
         keymapsPanel.add(diffKeymapsButton);
 
         otherKeymapsComboBoxModel = new DefaultComboBoxModel<>();
@@ -699,6 +703,80 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         String base64 = Base64.getEncoder().encodeToString(fileContent);
         String mimeType = Files.probeContentType(file.toPath());
 
-        return "data:images/png;base64," + base64;
+        return "data:image/png;base64," + base64;
+    }
+
+    private static String normalizeShortcut(KeyboardShortcut keyboardShortcut) {
+        return keyboardShortcut.toString()
+                .replaceAll("pressed ", "")
+                .replace("+", " ")
+                .replace("[", "[ ")
+                .replace("]", " ]");
+    }
+
+    private String buildKeymapText(Keymap keymap) {
+        ActionManager actionManager = ActionManager.getInstance();
+        SortedMap<String, String> lineByKey = new TreeMap<>();
+        for (String actionId : keymap.getActionIdList()) {
+            Shortcut[] shortcuts = keymap.getShortcuts(actionId);
+            List<String> normalized = new ArrayList<>();
+            for (Shortcut s : shortcuts) {
+                if (s instanceof KeyboardShortcut ks) {
+                    normalized.add(normalizeShortcut(ks));
+                }
+            }
+            Collections.sort(normalized);
+            AnAction action = actionManager.getAction(actionId);
+            String actionName = (action == null || action.getTemplatePresentation().getText() == null)
+                    ? actionId
+                    : action.getTemplatePresentation().getText();
+            String key = actionName + "\t(" + actionId + ")";
+            String value = normalized.isEmpty() ? "" : String.join(" | ", normalized);
+            lineByKey.put(key, value);
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Keymap: ").append(keymap.getName()).append("\n");
+        for (Map.Entry<String, String> e : lineByKey.entrySet()) {
+            sb.append(e.getKey()).append(" = ").append(e.getValue()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private void compareSelectedKeymaps() {
+        String leftName = String.valueOf(keymapsComboBoxModel.getSelectedItem());
+        String rightName = String.valueOf(otherKeymapsComboBoxModel.getSelectedItem());
+        if (leftName == null || rightName == null) {
+            Messages.showWarningDialog(project, "Please select two keymaps to compare.", "Compare Keymaps");
+            return;
+        }
+        if (leftName.equals(rightName)) {
+            Messages.showInfoMessage(project, "Selected keymaps are the same.", "Compare Keymaps");
+            return;
+        }
+        KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
+        Keymap left = keymapManager.getKeymap(leftName);
+        Keymap right = keymapManager.getKeymap(rightName);
+        if (left == null || right == null) {
+            Messages.showErrorDialog(project, "Could not resolve selected keymaps.", "Compare Keymaps");
+            return;
+        }
+        String leftText = buildKeymapText(left);
+        String rightText = buildKeymapText(right);
+
+        String title = "Keymap Diff: " + left.getName() + " \u2194 " + right.getName();
+        String leftTitle = left.getName();
+        String rightTitle = right.getName();
+
+        DiffContentFactory contentFactory = DiffContentFactory.getInstance();
+        var leftContent = contentFactory.create(leftText);
+        var rightContent = contentFactory.create(rightText);
+        SimpleDiffRequest request = new SimpleDiffRequest(
+                title,
+                leftContent,
+                rightContent,
+                leftTitle,
+                rightTitle
+        );
+        DiffManager.getInstance().showDiff(project, request);
     }
 }
