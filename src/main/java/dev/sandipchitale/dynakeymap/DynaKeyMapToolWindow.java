@@ -271,8 +271,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(keyMapTable);
         keyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
 
-        tabbedPane.addTab("Keymap", keyMapTablePanel);
-
         // Action Map
         BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
 
@@ -338,8 +336,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionMapTable));
 
         tabbedPane.addTab("Actions Map", actionMapTablePanel);
+        tabbedPane.addTab("Keymap", keyMapTablePanel);
 
-        tabbedPane.setSelectedIndex(1);
+        tabbedPane.setSelectedIndex(0);
 
         setContent(tabbedPane);
 
@@ -379,8 +378,6 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         if (otherSelectedKeymap == null) {
             otherSelectedKeymap = keymapManager.getActiveKeymap();
         }
-
-        tabbedPane.setTitleAt(0, "Keymap: %s".formatted(selectedKeymap.getName()));
 
         Keymap[] allKeymaps = keymapManager.getAllKeymaps();
         keymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).map(Keymap::getName).toList());
@@ -763,7 +760,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         String leftText = buildKeymapText(left);
         String rightText = buildKeymapText(right);
 
-        String title = "Keymap Diff: " + left.getName() + " \u2194 " + right.getName();
+        String title = "Keymap Diff: " + left.getName() + " ↔ " + right.getName();
         String leftTitle = left.getName();
         String rightTitle = right.getName();
 
