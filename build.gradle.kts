@@ -30,6 +30,10 @@ tasks {
         kotlinOptions.jvmTarget = "17"
     }
 
+    buildSearchableOptions {
+        enabled = false
+    }
+
     runIde {
         if (project.hasProperty("runIde_ideDirX")) {
             ideDir = file("${project.extra["runIde_ideDir"]}")
