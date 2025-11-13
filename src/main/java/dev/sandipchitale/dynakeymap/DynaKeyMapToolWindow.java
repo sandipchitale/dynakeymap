@@ -339,6 +339,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         tabbedPane.addTab("Keymap", keyMapTablePanel);
 
         tabbedPane.setSelectedIndex(0);
+        tabbedPane.setToolTipTextAt(1,  "Active Keymap: " + keymapManager.getActiveKeymap().getName());
 
         setContent(tabbedPane);
 
