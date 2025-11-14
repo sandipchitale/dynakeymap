@@ -130,6 +130,17 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
 
+    static class KeymapListCellRenderer extends DefaultListCellRenderer {
+
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            if (KeymapManagerEx.getInstanceEx().getActiveKeymap().getName().equals(value)) {
+                value = String.valueOf(value) + " (active)";
+            }
+            return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        }
+    }
+
     public DynaKeyMapToolWindow(@NotNull Project project) {
         super(true, true);
         this.project = project;
@@ -225,15 +236,19 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
         Keymap[] allKeymaps = keymapManager.getAllKeymaps();
 
+        KeymapListCellRenderer keymapListCellRenderer = new KeymapListCellRenderer();
+
         keymapsComboBoxModel = new DefaultComboBoxModel<>();
         keymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).map(Keymap::getName).toList());
         keymapsComboBoxModel.setSelectedItem(keymapManager.getActiveKeymap().getName());
         keymapsComboBox = new ComboBox<>(keymapsComboBoxModel);
         keymapsComboBox.setMinimumAndPreferredWidth(300);
+        keymapsComboBox.setRenderer(keymapListCellRenderer);
 
         keymapsPanel.add(keymapsComboBox);
 
-        JButton diffKeymapsButton = new JButton(" <- Compare Keymaps -> ");
+        JButton diffKeymapsButton = new JButton(AllIcons.Actions.SplitVertically);
+        diffKeymapsButton.setToolTipText("Compare Keymaps");
         diffKeymapsButton.addActionListener(e -> compareSelectedKeymaps());
         keymapsPanel.add(diffKeymapsButton);
 
@@ -242,6 +257,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         otherKeymapsComboBoxModel.setSelectedItem(keymapManager.getActiveKeymap().getName());
         otherKeymapsComboBox = new ComboBox<>(otherKeymapsComboBoxModel);
         otherKeymapsComboBox.setMinimumAndPreferredWidth(300);
+        otherKeymapsComboBox.setRenderer(keymapListCellRenderer);
 
         keymapsPanel.add(otherKeymapsComboBox);
 
@@ -292,8 +308,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 } else if (column == SHORTCUT_COLUMN) {
                     return rowVector.get(SHORTCUT_COLUMN);
                 } else if (column == ACTION_ID_COLUMN) {
-                    return rowVector.get(ACTION_ID_COLUMN
-                    );
+                    return rowVector.get(ACTION_ID_COLUMN);
                 } else {
                     return rowVector.get(column);
                 }
@@ -764,7 +779,11 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             lineByKey.put(key, value);
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Keymap: ").append(keymap.getName()).append("\n");
+        String keymapName = keymap.getName();
+        if (KeymapManagerEx.getInstanceEx().getActiveKeymap().getName().equals(keymapName)) {
+            keymapName = keymapName + " (active)";
+        }
+        sb.append("Keymap: ").append(keymapName).append("\n");
         for (Map.Entry<String, String> e : lineByKey.entrySet()) {
             sb.append(e.getKey()).append(" = ").append(e.getValue()).append("\n");
         }
