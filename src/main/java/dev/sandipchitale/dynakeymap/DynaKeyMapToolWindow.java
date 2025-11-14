@@ -371,7 +371,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         setContent(tabbedPane);
 
         final ActionManager actionManager = ActionManager.getInstance();
-        ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Current Keymap and Action Map");
+        ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Action map and Key maps");
 
         GenerateDynaKeyMapHtmlAction generateDynaKeyMapHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
         generateDynaKeyMapHtmlAction.setDynaKeyMapToolWindow(this);
@@ -624,7 +624,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 String formattedDate = zonedDateTime.format(formatter);
                 stringBuilder.append("<div class=\"text-bold p-4\">As of: " + formattedDate + "</div>\n");
 
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current Actions Map</div>\n");
+                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Action Map</div>\n");
                 stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                 stringBuilder.append("\t\t<tr>\n");
                 stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
@@ -691,7 +691,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("\t</table>\n");
 
                 if (!unboundActionsSet.isEmpty()) {
-                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Current unbound Actions</div>\n");
+                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Unbound Actions</div>\n");
                     stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
                     stringBuilder.append("\t\t<tr>\n");
                     stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
@@ -711,9 +711,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 stringBuilder.append("</html>");
 
                 try {
-                    Path currentKeyMapAndActionMapPath = Files.createTempFile("Current KeyMap and Action Map", ".html");
-                    Files.writeString(currentKeyMapAndActionMapPath, stringBuilder.toString());
-                    Desktop.getDesktop().browse(currentKeyMapAndActionMapPath.toUri());
+                    Path actionMapAndKeyMapsPath = Files.createTempFile("Action map and Key maps", ".html");
+                    Files.writeString(actionMapAndKeyMapsPath, stringBuilder.toString());
+                    Desktop.getDesktop().browse(actionMapAndKeyMapsPath.toUri());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

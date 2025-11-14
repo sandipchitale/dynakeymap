@@ -14,8 +14,8 @@
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-    Display the current Key Map in a tabular form.
-  ]]></description>
+    Display the Action Map and Key Map in a tabular form. Compare Keymaps.
+    ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
@@ -56,14 +56,14 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
                 factoryClass="dev.sandipchitale.dynakeymap.DynaKeyMapToolWindowFactory"
-                id="Current Keymap and Action Map"
+                id="Action map and Key maps"
                 anchor="bottom"
                 icon="dev.sandipchitale.dynakeymap.DynaKeyMapIcons.ICON"
                 secondary="true"
         />
         <notificationGroup
                 id="pluginsExplorerNotificationGroup"
-                toolWindowId="Current Keymap and Action Map"
+                toolWindowId="Action map and Key maps"
                 displayType="BALLOON"/>
     </extensions>
 
