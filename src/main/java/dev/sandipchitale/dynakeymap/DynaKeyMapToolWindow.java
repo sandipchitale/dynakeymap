@@ -313,7 +313,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 int column = columnAtPoint(p);
                 String actionId = String.valueOf(actionMapTable.getValueAt(row, 2));
                 return actionMapTable.getValueAt(row, column)
-                        + " ( Double click to edit shortcut for action id:"  + actionId + ")";
+                        + " ( Double click to edit shortcut for action id: "  + actionId + ")";
             }
         };
 
