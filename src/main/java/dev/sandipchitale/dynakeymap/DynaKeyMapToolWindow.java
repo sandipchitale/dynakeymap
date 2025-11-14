@@ -11,6 +11,7 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.keymap.ex.KeymapManagerEx;
+import com.intellij.openapi.keymap.impl.ui.EditKeymapsDialog;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.Messages;
@@ -23,6 +24,7 @@ import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
+import kotlinx.html.A;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.diff.DiffManager;
@@ -99,12 +101,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     private static final int ACTION_COLUMN = 0;
     private static final int SHORTCUT_COLUMN = 1;
+    private static final int ACTION_ID_COLUMN = 2;
 
-    private static final String[] ACTIONMAP_COLUMNS = new String[2];
+    private static final String[] ACTIONMAP_COLUMNS = new String[3];
 
     static {
         ACTIONMAP_COLUMNS[ACTION_COLUMN] = "Action";
         ACTIONMAP_COLUMNS[SHORTCUT_COLUMN] = "Shortcut";
+        ACTIONMAP_COLUMNS[ACTION_ID_COLUMN] = "ActionId";
     }
 
     private final JBTabbedPane tabbedPane;
@@ -287,9 +291,17 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     return rowVector.get(ACTION_COLUMN);
                 } else if (column == SHORTCUT_COLUMN) {
                     return rowVector.get(SHORTCUT_COLUMN);
+                } else if (column == ACTION_ID_COLUMN) {
+                    return rowVector.get(ACTION_ID_COLUMN
+                    );
                 } else {
                     return rowVector.get(column);
                 }
+            }
+
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
             }
         };
         actionMapTable = new JBTable(actionMapTableModel) {
@@ -299,9 +311,24 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 // Locate the renderer under the event location
                 int row = rowAtPoint(p);
                 int column = columnAtPoint(p);
-                return super.getToolTipText(event);
+                String actionId = actionMapTable.getValueAt(row, 2).toString();
+                return super.getToolTipText(event)
+                        + " ( Double click to edit shortcut for action id:"  + actionId + ")";
             }
         };
+
+        actionMapTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                if (event.getClickCount() == 2) {
+                    Point p = event.getPoint();
+                    // Locate the renderer under the event location
+                    int row = actionMapTable.rowAtPoint(p);
+                    String actionId = actionMapTable.getValueAt(row, 2).toString();
+                    new EditKeymapsDialog(project, actionId, false).show();
+                }
+            }
+        });
 
         actionMapTableRowSorter = new TableRowSorter<>(actionMapTableModel);
         actionMapTable.setRowSorter(actionMapTableRowSorter);
@@ -313,13 +340,13 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionMapSearchTextField.addKeyboardListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-            if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                actionMapSearchTextField.setText("");
-                search(actionMapSearchTextField, actionMapTableRowSorter);
-                return;
-            } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                search(actionMapSearchTextField, actionMapTableRowSorter);
-            }
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    actionMapSearchTextField.setText("");
+                    search(actionMapSearchTextField, actionMapTableRowSorter);
+                    return;
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    search(actionMapSearchTextField, actionMapTableRowSorter);
+                }
             }
         });
         actionMapToolbarPanel.addToCenter(actionMapSearchTextField);
@@ -357,6 +384,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         keymapsComboBox.addActionListener((ActionEvent actionEvent) -> refresh());
     }
+
+    public record ActionIdAndShortCuts(String actionId, Shortcut[] shortcuts){}
 
     void refresh() {
         keyMapTableModel.setRowCount(0);
@@ -499,8 +528,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
         }
 
-        SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
-        Set<String> unboundActionsSet = new TreeSet<>();
+        SortedMap<String, ActionIdAndShortCuts> actionNameToShortcutsMap = new TreeMap<>();
+        SortedMap<String, String> unboundActionsToActionIdMap = new TreeMap<>();
         for (String actionId : actionIdList) {
             AnAction action = actionManager.getAction(actionId);
             Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
@@ -511,9 +540,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 actionKey = action.getTemplatePresentation().getText();
             }
             if (shortcuts.length > 0) {
-                actionNameToShortcutsMap.put(actionKey, shortcuts);
+                actionNameToShortcutsMap.put(actionKey, new ActionIdAndShortCuts(actionId, shortcuts));
             } else {
-                unboundActionsSet.add(actionKey);
+                unboundActionsToActionIdMap.put(actionKey, actionId);
             }
         }
 
@@ -521,14 +550,15 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         keyMapSearchTextField.setHistory(actionHistory);
         keyMapSearchTextField.setHistorySize(actionHistory.size());
 
-        for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
+        for (Map.Entry<String, ActionIdAndShortCuts> entry : actionNameToShortcutsMap.entrySet()) {
             String actionName = entry.getKey();
-            Shortcut[] shortcuts = entry.getValue();
-            for (Shortcut shortcut : shortcuts) {
+            ActionIdAndShortCuts actionIdAndShortCuts = entry.getValue();
+            for (Shortcut shortcut : actionIdAndShortCuts.shortcuts()) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
                     Vector<String> row = new Vector<>();
                     row.add(actionName);
                     row.add(keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]"));
+                    row.add(actionIdAndShortCuts.actionId());
                     actionMapTableModel.addRow(row);
                 }
             }
@@ -537,11 +567,12 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         actionMapSearchTextField.setHistorySize(actionHistory.size());
 
         // Remaining unbound Actions
-        if (!unboundActionsSet.isEmpty()) {
-            for (String actionName : unboundActionsSet) {
+        if (!unboundActionsToActionIdMap.isEmpty()) {
+            for (String actionName : unboundActionsToActionIdMap.keySet()) {
                 Vector<String> row = new Vector<>();
                 row.add(actionName);
                 row.add("");
+                row.add(unboundActionsToActionIdMap.get(actionName));
                 actionMapTableModel.addRow(row);
             }
         }
