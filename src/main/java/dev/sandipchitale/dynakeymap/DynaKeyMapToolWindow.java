@@ -24,7 +24,6 @@ import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBTabbedPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
-import kotlinx.html.A;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.diff.DiffManager;
@@ -100,14 +99,16 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     private final SearchTextField keyMapSearchTextField;
 
     private static final int ACTION_COLUMN = 0;
-    private static final int SHORTCUT_COLUMN = 1;
-    private static final int ACTION_ID_COLUMN = 2;
+    private static final int FIRST_KEYSTROKE_COLUMN = 1;
+    private static final int SECOND_KEYSTROKE_COLUMN = 2;
+    private static final int ACTION_ID_COLUMN = 3;
 
-    private static final String[] ACTIONMAP_COLUMNS = new String[3];
+    private static final String[] ACTIONMAP_COLUMNS = new String[4];
 
     static {
         ACTIONMAP_COLUMNS[ACTION_COLUMN] = "Action";
-        ACTIONMAP_COLUMNS[SHORTCUT_COLUMN] = "Shortcut";
+        ACTIONMAP_COLUMNS[FIRST_KEYSTROKE_COLUMN] = "Key Stroke 1";
+        ACTIONMAP_COLUMNS[SECOND_KEYSTROKE_COLUMN] = "Key Stroke 2";
         ACTIONMAP_COLUMNS[ACTION_ID_COLUMN] = "ActionId";
     }
 
@@ -156,7 +157,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             @Override
             public Object getValueAt(int row, int column) {
                 Vector<String> rowVector = dataVector.get(row);
-                if (column == FIRST_KEYSTROKE_KEY) {
+                if (column == ACTION_COLUMN) {
+                    return rowVector.get(ACTION_COLUMN);
+                } else if (column == FIRST_KEYSTROKE_KEY) {
                     return rowVector.get(FIRST_KEYSTROKE_KEY);
                 } else if (column == SECOND_KEYSTROKE_KEY) {
                     return rowVector.get(SECOND_KEYSTROKE_KEY);
@@ -305,8 +308,8 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 Vector rowVector = dataVector.get(row);
                 if (column == ACTION_COLUMN) {
                     return rowVector.get(ACTION_COLUMN);
-                } else if (column == SHORTCUT_COLUMN) {
-                    return rowVector.get(SHORTCUT_COLUMN);
+                } else if (column == FIRST_KEYSTROKE_COLUMN) {
+                    return rowVector.get(FIRST_KEYSTROKE_COLUMN);
                 } else if (column == ACTION_ID_COLUMN) {
                     return rowVector.get(ACTION_ID_COLUMN);
                 } else {
@@ -339,8 +342,18 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     Point p = event.getPoint();
                     // Locate the renderer under the event location
                     int row = actionMapTable.rowAtPoint(p);
-                    String actionId = actionMapTable.getValueAt(row, 2).toString();
-                    new EditKeymapsDialog(project, actionId, false).show();
+                    int column = actionMapTable.columnAtPoint(p);
+                    switch  (column) {
+                        case ACTION_COLUMN:
+                        case ACTION_ID_COLUMN:
+                            String actionId = actionMapTable.getValueAt(row, ACTION_ID_COLUMN).toString();
+                            new EditKeymapsDialog(project, actionId, false).show();
+                            break;
+                        case FIRST_KEYSTROKE_COLUMN:
+                            break;
+                        case SECOND_KEYSTROKE_COLUMN:
+                            break;
+                    }
                 }
             }
         });
@@ -572,7 +585,13 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
                     Vector<String> row = new Vector<>();
                     row.add(actionName);
-                    row.add(keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]"));
+                    row.add("[ " + keyboardShortcut.getFirstKeyStroke().toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]") + " ]");
+                    KeyStroke secondKeyStroke = keyboardShortcut.getSecondKeyStroke();
+                    if (secondKeyStroke == null) {
+                        row.add("");
+                    } else {
+                        row.add("[ " + secondKeyStroke.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]") + " ]" );
+                    }
                     row.add(actionIdAndShortCuts.actionId());
                     actionMapTableModel.addRow(row);
                 }
@@ -586,6 +605,7 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             for (String actionName : unboundActionsToActionIdMap.keySet()) {
                 Vector<String> row = new Vector<>();
                 row.add(actionName);
+                row.add("");
                 row.add("");
                 row.add(unboundActionsToActionIdMap.get(actionName));
                 actionMapTableModel.addRow(row);

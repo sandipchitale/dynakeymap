@@ -24,6 +24,7 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
+            <li>Separate out KeyStroke 1 and KeyStroke 2 columns in Action Map table.</li>
             <li>Double click Action Map table row to edit the shortcut(s).</li>
         </ul>
 
