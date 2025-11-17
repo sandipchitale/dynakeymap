@@ -421,6 +421,63 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     public record ActionIdAndShortCuts(String actionId, Shortcut[] shortcuts){}
 
+    // Helpers to reduce duplication and keep logic readable
+    private static KeyStroke toKeyStroke(String modifier, String key) {
+        return KeyStroke.getKeyStroke(String.format("%s pressed %s", modifier, key));
+    }
+
+    private static String keyStrokeDisplay(KeyStroke keyStroke) {
+        return keyStroke.toString().replaceAll("pressed ", "");
+    }
+
+    private static String getActionText(ActionManager actionManager, String actionId) {
+        AnAction action = actionManager.getAction(actionId);
+        return (action == null || action.getTemplatePresentation().getText() == null)
+                ? actionId
+                : action.getTemplatePresentation().getText();
+    }
+
+    private static String buildActionsHtmlForFirst(List<String> actionIds, String keyStrokeLabel, ActionManager actionManager) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < actionIds.size(); i++) {
+            if (i == 0) {
+                sb.append("<html>");
+            } else {
+                sb.append("<br/>");
+            }
+            String actionId = actionIds.get(i);
+            sb.append("<nobr>");
+            sb.append(String.format("<code>[ %s ]</code> - ", keyStrokeLabel));
+            sb.append(getActionText(actionManager, actionId));
+            sb.append("</nobr>");
+        }
+        return sb.toString();
+    }
+
+    private static String buildActionsHtmlForChord(List<FirstKeyStrokeAndActionId> pairs, String secondStrokeLabel, ActionManager actionManager) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pairs.size(); i++) {
+            if (i == 0) {
+                sb.append("<html>");
+            } else {
+                sb.append("<br/>");
+            }
+            FirstKeyStrokeAndActionId pair = pairs.get(i);
+            sb.append("<nobr>");
+            sb.append(String.format("<code>[ %s ]</code> ", keyStrokeDisplay(pair.firstKeyStroke())));
+            sb.append(String.format("<code>[ %s ]</code> - ", secondStrokeLabel));
+            sb.append(getActionText(actionManager, pair.actionId()));
+            sb.append("</nobr>");
+        }
+        return sb.toString();
+    }
+
+    private static void addRowAndSetHeight(DefaultTableModel model, JBTable table, Vector<String> row, int linesPerCellMax) {
+        model.addRow(row);
+        int lastRow = model.getRowCount() - 1;
+        table.setRowHeight(lastRow, (linesPerCellMax * 24) + 24);
+    }
+
     void refresh() {
 
         Keymap selectedKeymap = (Keymap) keymapsComboBoxModel.getSelectedItem();
@@ -475,42 +532,20 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             row.add("");
 
             for (String mod : MODIFIERS) {
-                KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
-                if (keyStrokeToActionIdMap.containsKey(keyStroke)) {
-                    List<String> actionIds = keyStrokeToActionIdMap.get(keyStroke);
+                KeyStroke keyStroke = toKeyStroke(mod, key);
+                List<String> actionIds = keyStrokeToActionIdMap.get(keyStroke);
+                if (actionIds != null && !actionIds.isEmpty()) {
                     Collections.sort(actionIds);
-                    StringBuilder stringBuilder = new StringBuilder();
-                    int rowsInCell = 0;
-                    for (int i = 0; i < actionIds.size(); i++) {
-                        rowsInCell++;
-                        if (i == 0) {
-                            stringBuilder.append("<html>");
-                        }
-                        if (i > 0) {
-                            stringBuilder.append("<br/>");
-                        }
-                        stringBuilder.append("<nobr>");
-                        stringBuilder.append(String.format("<code>[ %s ]</code> - ", keyStroke.toString().replaceAll("pressed ", "")));
-                        String actionId = actionIds.get(i);
-                        AnAction action = actionManager.getAction(actionId);
-                        if (action == null) {
-                            stringBuilder.append(actionId);
-                        } else {
-                            stringBuilder.append(action.getTemplatePresentation().getText());
-                        }
-                        stringBuilder.append("</nobr>");
-                    }
-                    row.add(stringBuilder.toString());
-                    maxRowsInARow = Math.max(maxRowsInARow, rowsInCell);
+                    String html = buildActionsHtmlForFirst(actionIds, keyStrokeDisplay(keyStroke), actionManager);
+                    row.add(html);
+                    maxRowsInARow = Math.max(maxRowsInARow, actionIds.size());
                 } else {
                     row.add("");
-                    // No need to adjust maxRowsInARow
                 }
             }
-            keyMapTableModel.addRow(row);
-            int lastRow = keyMapTableModel.getRowCount() - 1;
-            keyMapTable.setRowHeight(lastRow, (maxRowsInARow * 24) + 24);
+            addRowAndSetHeight(keyMapTableModel, keyMapTable, row, maxRowsInARow);
 
+            // Second stroke row
             maxRowsInARow = 1;
             row = new Vector<>();
             row.add("");
@@ -518,45 +553,19 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
             boolean addRowForSecondStroke = false;
             for (String mod : MODIFIERS) {
-                // Second stroke
-                KeyStroke keyStroke = KeyStroke.getKeyStroke(String.format("%s pressed %s", mod, key));
-                if (secondStrokeToFirstKeyStrokeAndActionIdMap.containsKey(keyStroke)) {
-                    addRowForSecondStroke = true; // At least one action is mapped to this second stroke
-                    List<FirstKeyStrokeAndActionId> firstKeyStrokeAndActionIds = secondStrokeToFirstKeyStrokeAndActionIdMap.get(keyStroke);
-                    StringBuilder stringBuilder = new StringBuilder();
-                    int rowsInCell = 0;
-                    for (int i = 0; i < firstKeyStrokeAndActionIds.size(); i++) {
-                        rowsInCell++;
-                        if (i == 0) {
-                            stringBuilder.append("<html>");
-                        }
-                        if (i > 0) {
-                            stringBuilder.append("<br/>");
-                        }
-                        FirstKeyStrokeAndActionId firstKeyStrokeAndActionId = firstKeyStrokeAndActionIds.get(i);
-                        stringBuilder.append("<nobr>");
-                        stringBuilder.append(String.format("<code>[ %s ]</code> ", firstKeyStrokeAndActionId.firstKeyStroke().toString().replaceAll("pressed ", "")));
-                        stringBuilder.append(String.format("<code>[ %s ]</code> - ", keyStroke.toString().replaceAll("pressed ", "")));
-                        String actionId = firstKeyStrokeAndActionId.actionId();
-                        AnAction action = actionManager.getAction(actionId);
-                        if (action == null) {
-                            stringBuilder.append(actionId);
-                        } else {
-                            stringBuilder.append(action.getTemplatePresentation().getText());
-                        }
-                        stringBuilder.append("</nobr>");
-                    }
-                    row.add(stringBuilder.toString());
-                    maxRowsInARow = Math.max(maxRowsInARow, rowsInCell);
+                KeyStroke secondKeyStroke = toKeyStroke(mod, key);
+                List<FirstKeyStrokeAndActionId> pairs = secondStrokeToFirstKeyStrokeAndActionIdMap.get(secondKeyStroke);
+                if (pairs != null && !pairs.isEmpty()) {
+                    addRowForSecondStroke = true;
+                    String html = buildActionsHtmlForChord(pairs, keyStrokeDisplay(secondKeyStroke), actionManager);
+                    row.add(html);
+                    maxRowsInARow = Math.max(maxRowsInARow, pairs.size());
                 } else {
                     row.add("");
-                    // No need to adjust maxRowsInARow
                 }
             }
             if (addRowForSecondStroke) {
-                keyMapTableModel.addRow(row); //
-                int lastRowForSecondKeyStrokeRow = keyMapTableModel.getRowCount() - 1;
-                keyMapTable.setRowHeight(lastRowForSecondKeyStrokeRow, (maxRowsInARow * 24) + 24);
+                addRowAndSetHeight(keyMapTableModel, keyMapTable, row, maxRowsInARow);
             }
         }
 
