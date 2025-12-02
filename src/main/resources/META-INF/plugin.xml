@@ -74,6 +74,11 @@
                 text="Generate HTML"
                 icon="AllIcons.FileTypes.Html"
                 description="Generate current keymap and actionmap HTML"/>
+        <action id="GenerateDynaKeyMapPdf"
+                class="dev.sandipchitale.dynakeymap.GenerateDynaKeyMapPdfAction"
+                text="Generate PDF"
+                icon="AllIcons.FileTypes.Image"
+                description="Generate current keymap and actionmap PDF"/>
         <action id="DynaKeyMapRefresh"
                 class="dev.sandipchitale.dynakeymap.DynaKeyMapRefreshAction"
                 text="Refresh"

@@ -410,9 +410,18 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         GenerateDynaKeyMapHtmlAction generateDynaKeyMapHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
         generateDynaKeyMapHtmlAction.setDynaKeyMapToolWindow(this);
 
+        GenerateDynaKeyMapPdfAction generateDynaKeyMapPdfAction = (GenerateDynaKeyMapPdfAction) actionManager.getAction("GenerateDynaKeyMapPdf");
+        if (generateDynaKeyMapPdfAction != null) {
+            generateDynaKeyMapPdfAction.setDynaKeyMapToolWindow(this);
+        }
+
         DynaKeyMapRefreshAction refreshHelmExplorerAction = (DynaKeyMapRefreshAction) actionManager.getAction("DynaKeyMapRefresh");
         refreshHelmExplorerAction.setDynaKeyMapToolWindow(this);
-        Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, refreshHelmExplorerAction));
+        if (generateDynaKeyMapPdfAction != null) {
+            Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, generateDynaKeyMapPdfAction, refreshHelmExplorerAction));
+        } else {
+            Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, refreshHelmExplorerAction));
+        }
 
         refresh();
 
@@ -428,6 +437,18 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
     private static String keyStrokeDisplay(KeyStroke keyStroke) {
         return keyStroke.toString().replaceAll("pressed ", "");
+    }
+
+    // Minimal XML/HTML escaper for XHTML generation
+    private static String x(String s) {
+        if (s == null) return "";
+        String r = s;
+        r = r.replace("&", "&amp;");
+        r = r.replace("<", "&lt;");
+        r = r.replace(">", "&gt;");
+        r = r.replace("\"", "&quot;");
+        r = r.replace("'", "&#39;");
+        return r;
     }
 
     private static String getActionText(ActionManager actionManager, String actionId) {
@@ -763,6 +784,185 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                     Files.writeString(actionMapAndKeyMapsPath, stringBuilder.toString());
                     Desktop.getDesktop().browse(actionMapAndKeyMapsPath.toUri());
                 } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
+    }
+
+    public void generatePdf() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            WriteCommandAction.runWriteCommandAction(project, () -> {
+                StringBuilder sb = new StringBuilder();
+                // OpenHTMLtoPDF expects well-formed XHTML
+                sb.append("<html xmlns='http://www.w3.org/1999/xhtml'><head><meta charset='UTF-8' />");
+                // Inline, minimal CSS suitable for HTML->PDF
+                sb.append("<style>" +
+                        "@page{size: letter landscape; margin:24pt;}" +
+                        "body{font-family: sans-serif; font-size:10pt;}" +
+                        ".title{font-size:24pt; font-weight:bold; margin:12pt 0;}" +
+                        ".subtitle{font-size:12pt; font-weight:bold; margin:6pt 0;}" +
+                        ".section{font-size:16pt; font-weight:bold; margin:12pt 0 6pt 0;}" +
+                        "table{border-collapse:collapse; width:100%;}" +
+                        "th,td{border:1px solid #999; padding:4pt; white-space:nowrap;}" +
+                        "th{background:#eee;}" +
+                        ".row-alt{background:#f6f6f6;}" +
+                        "img.logo{max-width:100%; height:auto;}" +
+                        "</style></head><body>");
+
+                String splashImageUrl;
+                ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
+                splashImageUrl = applicationInfo.getSplashImageUrl();
+                File splashFile = null;
+                if (splashImageUrl != null) {
+                    URL resourceUrl = ApplicationInfo.class.getResource(splashImageUrl);
+                    if (resourceUrl != null) {
+                        try {
+                            Path splashImagePath = Files.createTempFile("splash", ".png");
+                            Files.copy(resourceUrl.openStream(), splashImagePath, StandardCopyOption.REPLACE_EXISTING);
+                            splashFile = splashImagePath.toFile();
+                            sb.append("<div style='margin:6pt 0'><img class='logo' src='" + convertFileToDataUrl(splashFile) + "' /></div>");
+                        } catch (IOException e) {
+                            // ignore logo if unavailable
+                        }
+                    }
+                }
+
+                sb.append("<div class='title'>" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() + " )</div>");
+
+                Date date = new Date();
+                Instant instant = date.toInstant();
+                ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
+                String formattedDate = zonedDateTime.format(formatter);
+                sb.append("<div class='subtitle'>As of: " + formattedDate + "</div>");
+
+                // Action Map
+                sb.append("<div class='section'>Action Map</div>");
+                sb.append("<table><tr><th class='text-right'>#</th><th>Action</th><th>Shortcut</th></tr>");
+
+                // Use the keymap selected in the Key maps tab
+                Keymap selectedKeymap = (Keymap) keymapsComboBoxModel.getSelectedItem();
+                if (selectedKeymap == null) {
+                    selectedKeymap = KeymapManager.getInstance().getActiveKeymap();
+                }
+                Collection<String> actionIdList = selectedKeymap.getActionIdList();
+                ActionManager actionManager = ActionManager.getInstance();
+                SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
+                // We will not include Unbound Actions in this PDF per requirements.
+                for (String actionId : actionIdList) {
+                    AnAction action = actionManager.getAction(actionId);
+                    Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
+                    String actionKey;
+                    if (action == null || action.getTemplatePresentation().getText() == null) {
+                        actionKey = actionId;
+                    } else {
+                        actionKey = action.getTemplatePresentation().getText();
+                    }
+                    if (shortcuts.length > 0) {
+                        actionNameToShortcutsMap.put(actionKey, shortcuts);
+                    }
+                }
+
+                int lineNumber = 0;
+                for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
+                    String actionName = entry.getKey();
+                    Shortcut[] shortcuts = entry.getValue();
+                    for (Shortcut shortcut : shortcuts) {
+                        if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
+                            sb.append(String.format("<tr class='%s'><td style='text-align:right'>%5d</td><td>%s</td><td>%s</td></tr>",
+                                    (lineNumber % 2 == 0 ? "row-alt" : ""),
+                                    ++lineNumber,
+                                    x(actionName),
+                                    x(normalizeShortcut(keyboardShortcut))));
+                        }
+                    }
+                }
+                sb.append("</table>");
+
+                sb.append("</body></html>");
+
+                try {
+                    // Build the body PDF from HTML
+                    Path bodyPdf = Files.createTempFile("dynakeymap-body", ".pdf");
+                    try (java.io.OutputStream os = java.nio.file.Files.newOutputStream(bodyPdf)) {
+                        com.openhtmltopdf.pdfboxout.PdfRendererBuilder builder = new com.openhtmltopdf.pdfboxout.PdfRendererBuilder();
+                        builder.withHtmlContent(sb.toString(), null);
+                        // Force PDF to landscape via builder as a fallback (renderer reads @page but this is extra safety)
+                        builder.toStream(os);
+                        builder.run();
+                    }
+
+                    // Build a cover page to resemble the reference and include logo
+                    Path coverPdf = Files.createTempFile("dynakeymap-cover", ".pdf");
+                    try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
+                        // Landscape cover page to match body
+                        org.apache.pdfbox.pdmodel.common.PDRectangle pageSize = new org.apache.pdfbox.pdmodel.common.PDRectangle(
+                                org.apache.pdfbox.pdmodel.common.PDRectangle.LETTER.getHeight(),
+                                org.apache.pdfbox.pdmodel.common.PDRectangle.LETTER.getWidth()
+                        );
+                        org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(pageSize);
+                        doc.addPage(page);
+                        try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page)) {
+                            float margin = 36f; // half-inch margin
+                            float yTop = pageSize.getHeight() - margin;
+
+                            // Title
+                            cs.beginText();
+                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA_BOLD, 24);
+                            cs.newLineAtOffset(margin, yTop - 40);
+                            cs.showText(applicationInfo.getFullApplicationName());
+                            cs.endText();
+
+                            // Version
+                            cs.beginText();
+                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
+                            cs.newLineAtOffset(margin, yTop - 70);
+                            cs.showText("Version: " + applicationInfo.getFullVersion());
+                            cs.endText();
+
+                            // Timestamp
+                            cs.beginText();
+                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
+                            cs.newLineAtOffset(margin, yTop - 90);
+                            cs.showText("As of: " + formattedDate);
+                            cs.endText();
+
+                            // Selected keymap name
+                            String keymapTitle = "Keymap: " + String.valueOf(keymapsComboBoxModel.getSelectedItem());
+                            cs.beginText();
+                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA_BOLD, 14);
+                            cs.newLineAtOffset(margin, yTop - 120);
+                            cs.showText(keymapTitle);
+                            cs.endText();
+
+                            // Logo if available
+                            if (splashFile != null && splashFile.exists()) {
+                                try {
+                                    org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img = org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromFileByContent(splashFile, doc);
+                                    float imgWidth = Math.min(pageSize.getWidth() - 2 * margin, img.getWidth());
+                                    float scale = imgWidth / img.getWidth();
+                                    float imgHeight = img.getHeight() * scale;
+                                    float imgX = margin;
+                                    float imgY = margin;
+                                    cs.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+                                } catch (IOException ignored) {
+                                }
+                            }
+                        }
+                        doc.save(coverPdf.toFile());
+                    }
+
+                    // Merge cover + body
+                    Path finalPdf = Files.createTempFile("Action map and Key maps", ".pdf");
+                    org.apache.pdfbox.multipdf.PDFMergerUtility merger = new org.apache.pdfbox.multipdf.PDFMergerUtility();
+                    merger.setDestinationFileName(finalPdf.toString());
+                    merger.addSource(coverPdf.toFile());
+                    merger.addSource(bodyPdf.toFile());
+                    merger.mergeDocuments(null);
+
+                    Desktop.getDesktop().open(finalPdf.toFile());
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             });
