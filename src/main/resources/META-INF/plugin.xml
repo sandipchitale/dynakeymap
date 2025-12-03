@@ -24,12 +24,13 @@
     <change-notes><![CDATA[
         <h2>New Features</h2>
         <ul>
-            <li>Separate out KeyStroke 1 and KeyStroke 2 columns in Action Map table.</li>
-            <li>Double click Action Map table row to edit the shortcut(s).</li>
+            <li>Generate PDF for the selected Action Map.</li>
         </ul>
 
         <h2>Features</h2>
         <ul>
+            <li>Separate out KeyStroke 1 and KeyStroke 2 columns in Action Map table.</li>
+            <li>Double-click the Action Map table row to edit the shortcut(s).</li>
             <li>Implement Compare Keymaps feature.</li>
             <li>Allow selection of Keymap from all available Keymaps.</li>
             <li>Shows Keymap name.</li>
