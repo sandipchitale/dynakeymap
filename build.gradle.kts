@@ -1,7 +1,9 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
-    id("org.jetbrains.intellij") version "1.17.4"
+    id("org.jetbrains.kotlin.jvm") version "2.1.20"
+    id("org.jetbrains.intellij.platform") version "2.10.4"
 }
 
 group = "dev.sandipchitale"
@@ -9,40 +11,50 @@ version = "1.0.57"
 
 repositories {
     mavenCentral()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
-intellij {
-    version.set("2024.1.7")
-    type.set("IC") // Target IDE Platform
+dependencies {
+    intellijPlatform {
+        intellijIdeaUltimate("LATEST-EAP-SNAPSHOT") {
+            useInstaller = false
+            useCache = true
+        }
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+    }
 
-    plugins.set(listOf(/* Plugin Dependencies */))
+    // PDF generation
+    implementation("org.apache.pdfbox:pdfbox:2.0.30")
+    implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
+    implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
+}
+
+intellijPlatform {
+    buildSearchableOptions = false
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
 }
 
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
-    }
-
-    buildSearchableOptions {
-        enabled = false
-    }
-
-    runIde {
-        if (project.hasProperty("runIde_ideDirX")) {
-            ideDir = file("${project.extra["runIde_ideDir"]}")
-        }
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
     }
 
     patchPluginXml {
-        sinceBuild.set("241")
-        untilBuild.set("253.*")
+        sinceBuild.set("253")
+        untilBuild.set("261.*")
     }
 
     signPlugin {
@@ -54,11 +66,4 @@ tasks {
     publishPlugin {
         token.set(System.getenv("PUBLISH_TOKEN"))
     }
-}
-
-dependencies {
-    // PDF generation
-    implementation("org.apache.pdfbox:pdfbox:2.0.30")
-    implementation("com.openhtmltopdf:openhtmltopdf-core:1.0.10")
-    implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
 }
