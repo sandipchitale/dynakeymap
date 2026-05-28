@@ -60,11 +60,11 @@
                 factoryClass="dev.sandipchitale.dynakeymap.DynaKeyMapToolWindowFactory"
                 id="Action map and Key maps"
                 anchor="bottom"
-                icon="dev.sandipchitale.dynakeymap.DynaKeyMapIcons.ICON"
+                icon="icons/dynakeymap.svg"
                 secondary="true"
         />
         <notificationGroup
-                id="pluginsExplorerNotificationGroup"
+                id="dynakeymapNotificationGroup"
                 toolWindowId="Action map and Key maps"
                 displayType="BALLOON"/>
     </extensions>
