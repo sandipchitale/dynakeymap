@@ -2,21 +2,16 @@ package dev.sandipchitale.dynakeymap;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.ActionManager;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.KeyboardShortcut;
 import com.intellij.openapi.actionSystem.Shortcut;
-import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.keymap.Keymap;
 import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.keymap.ex.KeymapManagerEx;
 import com.intellij.openapi.keymap.impl.ui.EditKeymapsDialog;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.ex.ToolWindowEx;
 import com.intellij.ui.ScrollPaneFactory;
@@ -26,99 +21,33 @@ import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.components.BorderLayoutPanel;
 import org.jetbrains.annotations.NotNull;
 
-import com.intellij.diff.DiffManager;
-import com.intellij.diff.DiffContentFactory;
-import com.intellij.diff.requests.SimpleDiffRequest;
-
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static dev.sandipchitale.dynakeymap.KeyMapLayout.*;
+
 public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
+
+    private static final Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");
 
     private final Project project;
 
     private final DefaultTableModel keyMapTableModel;
     private final JBTable keyMapTable;
-
-    private static int index = 0;
-    private static final int FIRST_KEYSTROKE_KEY = index++;
-    private static final int SECOND_KEYSTROKE_KEY = index++;
-
-    private static final String[] MODIFIERS;
-
-    private static final List<String> ALL_KEYS;
-
-    static {
-        java.util.List<String> VK_FIELDS = new ArrayList<>();
-        // Collect VK_ fields
-        for (java.lang.reflect.Field field : KeyEvent.class.getDeclaredFields()) {
-            if (field.getName().startsWith("VK_")) {
-                VK_FIELDS.add(field.getName().replace("VK_", ""));
-            }
-        }
-        // Combine VK_ fields and ASCII chars
-        ALL_KEYS = new ArrayList<>(VK_FIELDS);
-
-        // Sort
-        Collections.sort(ALL_KEYS);
-    }
-
-    static {
-        if (SystemInfo.isMac) {
-            MODIFIERS = new String[]{"shift", "ctrl", "meta", "alt", "shift ctrl", "shift meta", "shift alt", "ctrl meta", "ctrl alt", "meta alt", "shift ctrl meta", "shift ctrl alt", "shift meta alt", "ctrl meta alt", "shift ctrl meta alt", ""};
-        } else {
-            MODIFIERS = new String[]{"shift", "ctrl", "alt", "shift ctrl", "shift alt", "ctrl alt", "shift ctrl alt", ""};
-        }
-    }
-
-    private static final String[] KEYMAP_COLUMNS = new String[index + MODIFIERS.length];
-
-    static {
-        KEYMAP_COLUMNS[FIRST_KEYSTROKE_KEY] = "Key in First Keystroke";
-        KEYMAP_COLUMNS[SECOND_KEYSTROKE_KEY] = "Key in Second Keystroke";
-        System.arraycopy(MODIFIERS, 0, KEYMAP_COLUMNS, index, MODIFIERS.length);
-    }
-
     private final TableRowSorter<DefaultTableModel> keyMapTableRowSorter;
-
     private final SearchTextField keyMapSearchTextField;
-
-    private static final int ACTION_COLUMN = 0;
-    private static final int FIRST_KEYSTROKE_COLUMN = 1;
-    private static final int SECOND_KEYSTROKE_COLUMN = 2;
-    private static final int ACTION_ID_COLUMN = 3;
-
-    private static final String[] ACTIONMAP_COLUMNS = new String[4];
-
-    static {
-        ACTIONMAP_COLUMNS[ACTION_COLUMN] = "Action";
-        ACTIONMAP_COLUMNS[FIRST_KEYSTROKE_COLUMN] = "Key Stroke 1";
-        ACTIONMAP_COLUMNS[SECOND_KEYSTROKE_COLUMN] = "Key Stroke 2";
-        ACTIONMAP_COLUMNS[ACTION_ID_COLUMN] = "ActionId";
-    }
 
     private final JBTabbedPane tabbedPane;
 
     private final DefaultTableModel actionMapTableModel;
     private final JBTable actionMapTable;
-
     private final TableRowSorter<DefaultTableModel> actionMapTableRowSorter;
-
+    private final SearchTextField actionMapSearchTextField;
 
     private final DefaultComboBoxModel<Keymap> keymapsComboBoxModel;
     private final ComboBox<Keymap> keymapsComboBox;
@@ -126,8 +55,9 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
     private final DefaultComboBoxModel<Keymap> otherKeymapsComboBoxModel;
     private final ComboBox<Keymap> otherKeymapsComboBox;
 
-    private final SearchTextField actionMapSearchTextField;
-    
+    // Guards against re-entrant refresh() calls triggered by mutating the keymap combo box model.
+    private boolean refreshing;
+
     private record FirstKeyStrokeAndActionId(KeyStroke firstKeyStroke, String actionId) {
     }
 
@@ -136,16 +66,14 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             if (value instanceof Keymap keymap) {
-                if (KeymapManagerEx.getInstanceEx().getActiveKeymap().getName().equals(((Keymap)value).getName())) {
-                    value = String.valueOf(value) + " (active)";
+                if (KeymapManagerEx.getInstanceEx().getActiveKeymap().getName().equals(keymap.getName())) {
+                    value = value + " (active)";
                 }
-
                 Keymap keymapParent = keymap.getParent();
                 if (keymapParent != null) {
                     value += " ( Based on " + keymapParent.getName() + " )";
                 }
             }
-
             return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
         }
     }
@@ -156,104 +84,59 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         tabbedPane = new JBTabbedPane();
 
+        // Keymap tab.
         keyMapTableModel = new DefaultTableModel(KEYMAP_COLUMNS, 0) {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return String.class;
             }
-
-            @Override
-            public Object getValueAt(int row, int column) {
-                Vector<String> rowVector = dataVector.get(row);
-                if (column == ACTION_COLUMN) {
-                    return rowVector.get(ACTION_COLUMN);
-                } else if (column == FIRST_KEYSTROKE_KEY) {
-                    return rowVector.get(FIRST_KEYSTROKE_KEY);
-                } else if (column == SECOND_KEYSTROKE_KEY) {
-                    return rowVector.get(SECOND_KEYSTROKE_KEY);
-                } else {
-                    return rowVector.get(column);
-                }
-            }
         };
 
-        keyMapTable = new JBTable(keyMapTableModel) {
-            @Override
-            public String getToolTipText(@NotNull MouseEvent event) {
-                Point p = event.getPoint();
-                // Locate the renderer under the event location
-                int row = rowAtPoint(p);
-                int column = columnAtPoint(p);
-                return super.getToolTipText(event);
-            }
-        };
-
-        keyMapTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent mouseEvent) {
-            if (mouseEvent.isAltDown() && mouseEvent.getClickCount() == 2) {
-                Point p = mouseEvent.getPoint();
-                int column = keyMapTable.columnAtPoint(p);
-                int row = keyMapTable.rowAtPoint(p);
-            }
-            }
-        });
+        keyMapTable = new JBTable(keyMapTableModel);
 
         TableCellRenderer keyMapTableCellRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            if (column == FIRST_KEYSTROKE_KEY || column == SECOND_KEYSTROKE_KEY) {
-                String keyValue = (String) value;
-                if (!keyValue.isEmpty()) {
-                    label.setText(String.format("<html>%s", kbdfy(keyValue)));
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (column == FIRST_KEYSTROKE_KEY || column == SECOND_KEYSTROKE_KEY) {
+                    String keyValue = (String) value;
+                    if (!keyValue.isEmpty()) {
+                        label.setText(String.format("<html>%s", kbdfy(keyValue)));
+                    }
                 }
-            }
-
-            return label;
+                return label;
             }
         };
 
         keyMapTableRowSorter = new TableRowSorter<>(keyMapTableModel);
         keyMapTable.setRowSorter(keyMapTableRowSorter);
 
-        TableColumn column;
-
-        column = keyMapTable.getColumnModel().getColumn(FIRST_KEYSTROKE_KEY);
-        column.setMinWidth(250);
-        column.setWidth(250);
-        column.setMaxWidth(250);
-        column.setCellRenderer(keyMapTableCellRenderer);
-
-        column = keyMapTable.getColumnModel().getColumn(SECOND_KEYSTROKE_KEY);
-        column.setMinWidth(250);
-        column.setWidth(250);
-        column.setMaxWidth(250);
-        column.setCellRenderer(keyMapTableCellRenderer);
+        for (int keyStrokeColumn : new int[]{FIRST_KEYSTROKE_KEY, SECOND_KEYSTROKE_KEY}) {
+            TableColumn column = keyMapTable.getColumnModel().getColumn(keyStrokeColumn);
+            column.setMinWidth(KEYSTROKE_COLUMN_WIDTH);
+            column.setWidth(KEYSTROKE_COLUMN_WIDTH);
+            column.setMaxWidth(KEYSTROKE_COLUMN_WIDTH);
+            column.setCellRenderer(keyMapTableCellRenderer);
+        }
 
         JTableHeader tableHeader = keyMapTable.getTableHeader();
         Dimension tableHeaderPreferredSize = tableHeader.getPreferredSize();
-        tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, 48));
+        tableHeader.setPreferredSize(new Dimension(tableHeaderPreferredSize.width, HEADER_HEIGHT));
         tableHeader.setToolTipText("Right click on the header to hide/show columns. Some columns may be hidden.");
 
         new JTableColumnSelector().install(keyMapTable);
 
         BorderLayoutPanel keyMapTablePanel = new BorderLayoutPanel();
-
         BorderLayoutPanel toolbarPanel = new BorderLayoutPanel();
-
         JPanel keymapsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
 
         KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
-        Keymap[] allKeymaps = keymapManager.getAllKeymaps();
-
         KeymapListCellRenderer keymapListCellRenderer = new KeymapListCellRenderer();
 
         keymapsComboBoxModel = new DefaultComboBoxModel<>();
         keymapsComboBox = new ComboBox<>(keymapsComboBoxModel);
         keymapsComboBox.setMinimumAndPreferredWidth(400);
         keymapsComboBox.setRenderer(keymapListCellRenderer);
-
         keymapsPanel.add(keymapsComboBox);
 
         JButton diffKeymapsButton = new JButton(AllIcons.Actions.SplitVertically);
@@ -265,40 +148,24 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         otherKeymapsComboBox = new ComboBox<>(otherKeymapsComboBoxModel);
         otherKeymapsComboBox.setMinimumAndPreferredWidth(400);
         otherKeymapsComboBox.setRenderer(keymapListCellRenderer);
-
         keymapsPanel.add(otherKeymapsComboBox);
 
         toolbarPanel.addToLeft(keymapsPanel);
 
         keyMapSearchTextField = new SearchTextField();
         keyMapSearchTextField.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
-        keyMapSearchTextField.addKeyboardListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-            if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                keyMapSearchTextField.setText("");
-                search(keyMapSearchTextField, keyMapTableRowSorter);
-                return;
-            } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                search(keyMapSearchTextField, keyMapTableRowSorter);
-            }
-            }
-        });
+        keyMapSearchTextField.addKeyboardListener(searchFieldListener(keyMapSearchTextField, keyMapTableRowSorter));
         toolbarPanel.addToCenter(keyMapSearchTextField);
 
         JButton searchButton = new JButton(AllIcons.General.Filter);
         searchButton.setToolTipText("Filter. NOTE: Text will match in hidden columns as well.");
-        searchButton.addActionListener((ActionEvent actionEvent) -> {
-            search(keyMapSearchTextField, keyMapTableRowSorter);
-        });
+        searchButton.addActionListener(e -> search(keyMapSearchTextField, keyMapTableRowSorter));
         toolbarPanel.addToRight(searchButton);
 
         keyMapTablePanel.addToTop(toolbarPanel);
+        keyMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(keyMapTable));
 
-        JScrollPane dynaKeyMapTableScrollPane = ScrollPaneFactory.createScrollPane(keyMapTable);
-        keyMapTablePanel.addToCenter(dynaKeyMapTableScrollPane);
-
-        // Action Map
+        // Action Map tab.
         BorderLayoutPanel actionMapTablePanel = new BorderLayoutPanel();
 
         actionMapTableModel = new DefaultTableModel(ACTIONMAP_COLUMNS, 0) {
@@ -308,58 +175,35 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
 
             @Override
-            public Object getValueAt(int row, int column) {
-                Vector rowVector = dataVector.get(row);
-                if (column == ACTION_COLUMN) {
-                    return rowVector.get(ACTION_COLUMN);
-                } else if (column == FIRST_KEYSTROKE_COLUMN) {
-                    return rowVector.get(FIRST_KEYSTROKE_COLUMN);
-                } else if (column == ACTION_ID_COLUMN) {
-                    return rowVector.get(ACTION_ID_COLUMN);
-                } else {
-                    return rowVector.get(column);
-                }
-            }
-
-            @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
+
         actionMapTable = new JBTable(actionMapTableModel) {
             @Override
             public String getToolTipText(@NotNull MouseEvent event) {
                 Point p = event.getPoint();
-                // Locate the renderer under the event location
                 int row = rowAtPoint(p);
                 int column = columnAtPoint(p);
-                String actionId = String.valueOf(actionMapTable.getValueAt(row, 2));
-                return actionMapTable.getValueAt(row, column)
-                        + " ( Double click to edit shortcut for action id: "  + actionId + ")";
+                String actionId = String.valueOf(getValueAt(row, ACTION_ID_COLUMN));
+                return getValueAt(row, column) + " ( Double click to edit shortcut for action id: " + actionId + ")";
             }
         };
 
         actionMapTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent event) {
-                if (event.getClickCount() == 2) {
-                    Point p = event.getPoint();
-                    // Locate the renderer under the event location
-                    int row = actionMapTable.rowAtPoint(p);
-                    int column = actionMapTable.columnAtPoint(p);
-                    switch  (column) {
-                        case ACTION_COLUMN:
-                        case ACTION_ID_COLUMN:
-                            String actionId = actionMapTable.getValueAt(row, ACTION_ID_COLUMN).toString();
-                            EditKeymapsDialog editKeymapsDialog = new EditKeymapsDialog(project, actionId, false);
-                            editKeymapsDialog.setSize(600, 900);
-                            editKeymapsDialog.show();
-                            break;
-                        case FIRST_KEYSTROKE_COLUMN:
-                            break;
-                        case SECOND_KEYSTROKE_COLUMN:
-                            break;
-                    }
+                if (event.getClickCount() != 2) {
+                    return;
+                }
+                int row = actionMapTable.rowAtPoint(event.getPoint());
+                int column = actionMapTable.columnAtPoint(event.getPoint());
+                if (column == ACTION_COLUMN || column == ACTION_ID_COLUMN) {
+                    String actionId = actionMapTable.getValueAt(row, ACTION_ID_COLUMN).toString();
+                    EditKeymapsDialog editKeymapsDialog = new EditKeymapsDialog(project, actionId, false);
+                    editKeymapsDialog.setSize(600, 900);
+                    editKeymapsDialog.show();
                 }
             }
         });
@@ -371,194 +215,142 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
 
         actionMapSearchTextField = new SearchTextField();
         actionMapSearchTextField.setToolTipText("Search");
-        actionMapSearchTextField.addKeyboardListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    actionMapSearchTextField.setText("");
-                    search(actionMapSearchTextField, actionMapTableRowSorter);
-                    return;
-                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    search(actionMapSearchTextField, actionMapTableRowSorter);
-                }
-            }
-        });
+        actionMapSearchTextField.addKeyboardListener(searchFieldListener(actionMapSearchTextField, actionMapTableRowSorter));
         actionMapToolbarPanel.addToCenter(actionMapSearchTextField);
 
         JButton searchActionMapButton = new JButton(AllIcons.Actions.Find);
         searchActionMapButton.setToolTipText("Search");
-        searchActionMapButton.addActionListener((ActionEvent actionEvent) -> {
-            search(actionMapSearchTextField, actionMapTableRowSorter);
-        });
+        searchActionMapButton.addActionListener(e -> search(actionMapSearchTextField, actionMapTableRowSorter));
         actionMapToolbarPanel.addToRight(searchActionMapButton);
 
         actionMapTablePanel.addToTop(actionMapToolbarPanel);
-
         actionMapTablePanel.addToCenter(ScrollPaneFactory.createScrollPane(actionMapTable));
 
         tabbedPane.addTab("Actions Map", actionMapTablePanel);
         tabbedPane.addTab("Keymap", keyMapTablePanel);
-
         tabbedPane.setSelectedIndex(0);
-        tabbedPane.setToolTipTextAt(1,  "Active Keymap: " + keymapManager.getActiveKeymap().getName());
+        tabbedPane.setToolTipTextAt(1, "Active Keymap: " + keymapManager.getActiveKeymap().getName());
 
         setContent(tabbedPane);
 
-        final ActionManager actionManager = ActionManager.getInstance();
-        ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Action map and Key maps");
-
-        GenerateDynaKeyMapHtmlAction generateDynaKeyMapHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
-        generateDynaKeyMapHtmlAction.setDynaKeyMapToolWindow(this);
-
-        GenerateDynaKeyMapPdfAction generateDynaKeyMapPdfAction = (GenerateDynaKeyMapPdfAction) actionManager.getAction("GenerateDynaKeyMapPdf");
-        if (generateDynaKeyMapPdfAction != null) {
-            generateDynaKeyMapPdfAction.setDynaKeyMapToolWindow(this);
-        }
-
-        DynaKeyMapRefreshAction refreshHelmExplorerAction = (DynaKeyMapRefreshAction) actionManager.getAction("DynaKeyMapRefresh");
-        refreshHelmExplorerAction.setDynaKeyMapToolWindow(this);
-        if (generateDynaKeyMapPdfAction != null) {
-            Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, generateDynaKeyMapPdfAction, refreshHelmExplorerAction));
-        } else {
-            Objects.requireNonNull(dynaKeyMapToolWindow).setTitleActions(java.util.List.of(generateDynaKeyMapHtmlAction, refreshHelmExplorerAction));
-        }
+        wireTitleActions();
 
         refresh();
 
-        keymapsComboBox.addActionListener((ActionEvent actionEvent) -> refresh());
+        keymapsComboBox.addActionListener(e -> refresh());
     }
 
-    public record ActionIdAndShortCuts(String actionId, Shortcut[] shortcuts){}
+    private void wireTitleActions() {
+        ActionManager actionManager = ActionManager.getInstance();
+        ToolWindowEx dynaKeyMapToolWindow = (ToolWindowEx) ToolWindowManager.getInstance(project).getToolWindow("Action map and Key maps");
 
-    // Helpers to reduce duplication and keep logic readable
-    private static KeyStroke toKeyStroke(String modifier, String key) {
-        return KeyStroke.getKeyStroke(String.format("%s pressed %s", modifier, key));
-    }
+        GenerateDynaKeyMapHtmlAction generateHtmlAction = (GenerateDynaKeyMapHtmlAction) actionManager.getAction("GenerateDynaKeyMapHtml");
+        generateHtmlAction.setDynaKeyMapToolWindow(this);
 
-    private static String keyStrokeDisplay(KeyStroke keyStroke) {
-        return keyStroke.toString().replaceAll("pressed ", "");
-    }
-
-    // Minimal XML/HTML escaper for XHTML generation
-    private static String x(String s) {
-        if (s == null) return "";
-        String r = s;
-        r = r.replace("&", "&amp;");
-        r = r.replace("<", "&lt;");
-        r = r.replace(">", "&gt;");
-        r = r.replace("\"", "&quot;");
-        r = r.replace("'", "&#39;");
-        return r;
-    }
-
-    private static String getActionText(ActionManager actionManager, String actionId) {
-        AnAction action = actionManager.getAction(actionId);
-        return (action == null || action.getTemplatePresentation().getText() == null)
-                ? actionId
-                : action.getTemplatePresentation().getText();
-    }
-
-    private static String buildActionsHtmlForFirst(List<String> actionIds, String keyStrokeLabel, ActionManager actionManager) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < actionIds.size(); i++) {
-            if (i == 0) {
-                sb.append("<html>");
-            } else {
-                sb.append("<br/>");
-            }
-            String actionId = actionIds.get(i);
-            sb.append("<nobr>");
-            sb.append(String.format("<code>[ %s ]</code> - ", keyStrokeLabel));
-            sb.append(getActionText(actionManager, actionId));
-            sb.append("</nobr>");
+        GenerateDynaKeyMapPdfAction generatePdfAction = (GenerateDynaKeyMapPdfAction) actionManager.getAction("GenerateDynaKeyMapPdf");
+        if (generatePdfAction != null) {
+            generatePdfAction.setDynaKeyMapToolWindow(this);
         }
-        return sb.toString();
-    }
 
-    private static String buildActionsHtmlForChord(List<FirstKeyStrokeAndActionId> pairs, String secondStrokeLabel, ActionManager actionManager) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < pairs.size(); i++) {
-            if (i == 0) {
-                sb.append("<html>");
-            } else {
-                sb.append("<br/>");
-            }
-            FirstKeyStrokeAndActionId pair = pairs.get(i);
-            sb.append("<nobr>");
-            sb.append(String.format("<code>[ %s ]</code> ", keyStrokeDisplay(pair.firstKeyStroke())));
-            sb.append(String.format("<code>[ %s ]</code> - ", secondStrokeLabel));
-            sb.append(getActionText(actionManager, pair.actionId()));
-            sb.append("</nobr>");
+        DynaKeyMapRefreshAction refreshAction = (DynaKeyMapRefreshAction) actionManager.getAction("DynaKeyMapRefresh");
+        refreshAction.setDynaKeyMapToolWindow(this);
+
+        Objects.requireNonNull(dynaKeyMapToolWindow);
+        if (generatePdfAction != null) {
+            dynaKeyMapToolWindow.setTitleActions(List.of(generateHtmlAction, generatePdfAction, refreshAction));
+        } else {
+            dynaKeyMapToolWindow.setTitleActions(List.of(generateHtmlAction, refreshAction));
         }
-        return sb.toString();
     }
 
-    private static void addRowAndSetHeight(DefaultTableModel model, JBTable table, Vector<String> row, int linesPerCellMax) {
-        model.addRow(row);
-        int lastRow = model.getRowCount() - 1;
-        table.setRowHeight(lastRow, (linesPerCellMax * 24) + 24);
+    private KeyAdapter searchFieldListener(SearchTextField searchTextField, TableRowSorter<DefaultTableModel> sorter) {
+        return new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    searchTextField.setText("");
+                    search(searchTextField, sorter);
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    search(searchTextField, sorter);
+                }
+            }
+        };
     }
+
+    // ---- Refresh ---------------------------------------------------------
 
     void refresh() {
+        if (refreshing) {
+            return;
+        }
+        refreshing = true;
+        try {
+            doRefresh();
+        } finally {
+            refreshing = false;
+        }
+    }
 
+    private void doRefresh() {
         Keymap selectedKeymap = (Keymap) keymapsComboBoxModel.getSelectedItem();
         Keymap otherSelectedKeymap = (Keymap) otherKeymapsComboBoxModel.getSelectedItem();
-
 
         keymapsComboBoxModel.removeAllElements();
         otherKeymapsComboBoxModel.removeAllElements();
 
         KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
+        List<Keymap> allKeymaps = Arrays.asList(keymapManager.getAllKeymaps());
 
-        Keymap[] allKeymaps = keymapManager.getAllKeymaps();
-        keymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).toList());
+        keymapsComboBoxModel.addAll(allKeymaps);
         if (selectedKeymap == null) {
-            selectedKeymap =keymapManager.getActiveKeymap();
+            selectedKeymap = keymapManager.getActiveKeymap();
         }
         keymapsComboBoxModel.setSelectedItem(selectedKeymap);
-        if (otherSelectedKeymap == null) {
-            otherSelectedKeymap =keymapManager.getActiveKeymap();
-        }
-        otherKeymapsComboBoxModel.addAll(Arrays.stream(allKeymaps).toList());
 
+        otherKeymapsComboBoxModel.addAll(allKeymaps);
+        if (otherSelectedKeymap == null) {
+            otherSelectedKeymap = keymapManager.getActiveKeymap();
+        }
         otherKeymapsComboBoxModel.setSelectedItem(otherSelectedKeymap);
 
         keyMapTableModel.setRowCount(0);
         actionMapTableModel.setRowCount(0);
 
-        Map<KeyStroke, java.util.List<String>> keyStrokeToActionIdMap = new HashMap<>();
-        Map<KeyStroke, java.util.List<FirstKeyStrokeAndActionId>> secondStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
-        Collection<String> actionIdList = selectedKeymap.getActionIdList();
-        for (String actionId : actionIdList) {
-            Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
-            for (Shortcut shortcut : shortcuts) {
+        ActionManager actionManager = ActionManager.getInstance();
+
+        populateKeyMapTable(selectedKeymap, actionManager);
+        populateActionMapTable(KeymapActions.collect(selectedKeymap, actionManager));
+    }
+
+    private void populateKeyMapTable(Keymap selectedKeymap, ActionManager actionManager) {
+        Map<KeyStroke, List<String>> keyStrokeToActionIdMap = new HashMap<>();
+        Map<KeyStroke, List<FirstKeyStrokeAndActionId>> secondStrokeToFirstKeyStrokeAndActionIdMap = new HashMap<>();
+        for (String actionId : selectedKeymap.getActionIdList()) {
+            for (Shortcut shortcut : selectedKeymap.getShortcuts(actionId)) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
                     KeyStroke firstKeyStroke = keyboardShortcut.getFirstKeyStroke();
                     keyStrokeToActionIdMap.computeIfAbsent(firstKeyStroke, k -> new ArrayList<>()).add(actionId);
                     KeyStroke secondKeyStroke = keyboardShortcut.getSecondKeyStroke();
                     if (secondKeyStroke != null) {
-                        secondStrokeToFirstKeyStrokeAndActionIdMap.computeIfAbsent(secondKeyStroke, k -> new ArrayList<>()).add(new FirstKeyStrokeAndActionId(firstKeyStroke, actionId));
+                        secondStrokeToFirstKeyStrokeAndActionIdMap.computeIfAbsent(secondKeyStroke, k -> new ArrayList<>())
+                                .add(new FirstKeyStrokeAndActionId(firstKeyStroke, actionId));
                     }
                 }
             }
         }
 
-        ActionManager actionManager = ActionManager.getInstance();
-
         for (String key : ALL_KEYS) {
-            // First stroke row
+            // First-keystroke row.
             int maxRowsInARow = 1;
             Vector<String> row = new Vector<>();
             row.add(key);
             row.add("");
-
             for (String mod : MODIFIERS) {
-                KeyStroke keyStroke = toKeyStroke(mod, key);
+                KeyStroke keyStroke = Shortcuts.toKeyStroke(mod, key);
                 List<String> actionIds = keyStrokeToActionIdMap.get(keyStroke);
                 if (actionIds != null && !actionIds.isEmpty()) {
                     Collections.sort(actionIds);
-                    String html = buildActionsHtmlForFirst(actionIds, keyStrokeDisplay(keyStroke), actionManager);
-                    row.add(html);
+                    row.add(buildActionsHtmlForFirst(actionIds, Shortcuts.keyStrokeDisplay(keyStroke), actionManager));
                     maxRowsInARow = Math.max(maxRowsInARow, actionIds.size());
                 } else {
                     row.add("");
@@ -566,20 +358,18 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
             }
             addRowAndSetHeight(keyMapTableModel, keyMapTable, row, maxRowsInARow);
 
-            // Second stroke row
+            // Second-keystroke (chord) row, only added when there is at least one chord ending on this key.
             maxRowsInARow = 1;
             row = new Vector<>();
             row.add("");
             row.add(key);
-
             boolean addRowForSecondStroke = false;
             for (String mod : MODIFIERS) {
-                KeyStroke secondKeyStroke = toKeyStroke(mod, key);
+                KeyStroke secondKeyStroke = Shortcuts.toKeyStroke(mod, key);
                 List<FirstKeyStrokeAndActionId> pairs = secondStrokeToFirstKeyStrokeAndActionIdMap.get(secondKeyStroke);
                 if (pairs != null && !pairs.isEmpty()) {
                     addRowForSecondStroke = true;
-                    String html = buildActionsHtmlForChord(pairs, keyStrokeDisplay(secondKeyStroke), actionManager);
-                    row.add(html);
+                    row.add(buildActionsHtmlForChord(pairs, Shortcuts.keyStrokeDisplay(secondKeyStroke), actionManager));
                     maxRowsInARow = Math.max(maxRowsInARow, pairs.size());
                 } else {
                     row.add("");
@@ -589,61 +379,39 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
                 addRowAndSetHeight(keyMapTableModel, keyMapTable, row, maxRowsInARow);
             }
         }
+    }
 
-        SortedMap<String, ActionIdAndShortCuts> actionNameToShortcutsMap = new TreeMap<>();
-        SortedMap<String, String> unboundActionsToActionIdMap = new TreeMap<>();
-        for (String actionId : actionIdList) {
-            AnAction action = actionManager.getAction(actionId);
-            Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
-            String actionKey;
-            if (action == null || action.getTemplatePresentation().getText() == null) {
-                actionKey = actionId;
-            } else {
-                actionKey = action.getTemplatePresentation().getText();
-            }
-            if (shortcuts.length > 0) {
-                actionNameToShortcutsMap.put(actionKey, new ActionIdAndShortCuts(actionId, shortcuts));
-            } else {
-                unboundActionsToActionIdMap.put(actionKey, actionId);
-            }
-        }
-
-        List<String> actionHistory = actionNameToShortcutsMap.keySet().stream().filter((String s) -> s.length() > 1).toList();
+    private void populateActionMapTable(KeymapActions actions) {
+        List<String> actionHistory = actions.bound().keySet().stream().filter(s -> s.length() > 1).toList();
         keyMapSearchTextField.setHistory(actionHistory);
         keyMapSearchTextField.setHistorySize(actionHistory.size());
 
-        for (Map.Entry<String, ActionIdAndShortCuts> entry : actionNameToShortcutsMap.entrySet()) {
+        for (Map.Entry<String, KeymapActions.ActionIdAndShortCuts> entry : actions.bound().entrySet()) {
             String actionName = entry.getKey();
-            ActionIdAndShortCuts actionIdAndShortCuts = entry.getValue();
+            KeymapActions.ActionIdAndShortCuts actionIdAndShortCuts = entry.getValue();
             for (Shortcut shortcut : actionIdAndShortCuts.shortcuts()) {
                 if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
                     Vector<String> row = new Vector<>();
                     row.add(actionName);
-                    row.add("[ " + keyboardShortcut.getFirstKeyStroke().toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]") + " ]");
+                    row.add(Shortcuts.bracketed(keyboardShortcut.getFirstKeyStroke()));
                     KeyStroke secondKeyStroke = keyboardShortcut.getSecondKeyStroke();
-                    if (secondKeyStroke == null) {
-                        row.add("");
-                    } else {
-                        row.add("[ " + secondKeyStroke.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]") + " ]" );
-                    }
+                    row.add(secondKeyStroke == null ? "" : Shortcuts.bracketed(secondKeyStroke));
                     row.add(actionIdAndShortCuts.actionId());
                     actionMapTableModel.addRow(row);
                 }
             }
         }
+
         actionMapSearchTextField.setHistory(actionHistory);
         actionMapSearchTextField.setHistorySize(actionHistory.size());
 
-        // Remaining unbound Actions
-        if (!unboundActionsToActionIdMap.isEmpty()) {
-            for (String actionName : unboundActionsToActionIdMap.keySet()) {
-                Vector<String> row = new Vector<>();
-                row.add(actionName);
-                row.add("");
-                row.add("");
-                row.add(unboundActionsToActionIdMap.get(actionName));
-                actionMapTableModel.addRow(row);
-            }
+        for (Map.Entry<String, String> entry : actions.unbound().entrySet()) {
+            Vector<String> row = new Vector<>();
+            row.add(entry.getKey());
+            row.add("");
+            row.add("");
+            row.add(entry.getValue());
+            actionMapTableModel.addRow(row);
         }
     }
 
@@ -656,409 +424,68 @@ public class DynaKeyMapToolWindow extends SimpleToolWindowPanel {
         }
     }
 
-    public void generateHtml() {
-        ApplicationManager.getApplication().invokeLater(() -> {
-            WriteCommandAction.runWriteCommandAction(project, () -> {
-                StringBuilder stringBuilder = new StringBuilder();
-                stringBuilder.append("<html>\n<head>\n<title>KeyMap and Action Map</title>\n");
+    // ---- Key map table cell rendering helpers ----------------------------
 
-                stringBuilder.append("<meta charset=\"UTF-8\">\n");
-                stringBuilder.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-                stringBuilder.append("<script src=\"https://cdn.tailwindcss.com\"></script>\n");
-
-                stringBuilder.append("</head>\n<body>");
-
-                String splashImageUrl;
-                ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
-                splashImageUrl = applicationInfo.getSplashImageUrl();
-                if (splashImageUrl != null) {
-                    URL resourceUrl = ApplicationInfo.class.getResource(splashImageUrl);
-                    if (resourceUrl != null) {
-                        try {
-                            Path splashImagePath = Files.createTempFile("splash", ".png");
-                            Files.copy(resourceUrl.openStream(), splashImagePath, StandardCopyOption.REPLACE_EXISTING);
-                            stringBuilder.append("<div class=\"p-4\"><img src=\"" + convertFileToDataUrl(splashImagePath.toFile()) + "\"></img></div>\n");
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-
-                stringBuilder.append("<div class=\"text-5xl text-bold p-4\">" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() + " )</div>\n");
-
-                Date date = new Date();
-                Instant instant = date.toInstant();
-                ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
-                String formattedDate = zonedDateTime.format(formatter);
-                stringBuilder.append("<div class=\"text-bold p-4\">As of: " + formattedDate + "</div>\n");
-
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Action Map</div>\n");
-                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
-                stringBuilder.append("\t\t<tr>\n");
-                stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
-                stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
-                stringBuilder.append("<th class=\"text-nowrap border p-1\">Shortcut</th>\n");
-                stringBuilder.append("\t\t</tr>\n");
-
-                Keymap activeKeymap = KeymapManager.getInstance().getActiveKeymap();
-                Collection<String> actionIdList = activeKeymap.getActionIdList();
-
-                ActionManager actionManager = ActionManager.getInstance();
-                SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
-                Set<String> unboundActionsSet = new TreeSet<>();
-                for (String actionId : actionIdList) {
-                    AnAction action = actionManager.getAction(actionId);
-                    Shortcut[] shortcuts = activeKeymap.getShortcuts(actionId);
-                    String actionKey;
-                    if (action == null || action.getTemplatePresentation().getText() == null) {
-                        actionKey = actionId;
-                    } else {
-                        actionKey = action.getTemplatePresentation().getText();
-                    }
-                    if (shortcuts.length > 0) {
-                        actionNameToShortcutsMap.put(actionKey, shortcuts);
-                    } else {
-                        unboundActionsSet.add(actionKey);
-                    }
-                }
-
-                int lineNumber;
-                lineNumber = 0;
-                for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
-                    String actionName = entry.getKey();
-                    Shortcut[] shortcuts = entry.getValue();
-                    for (Shortcut shortcut : shortcuts) {
-                        if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                            stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1" + (lineNumber % 2 == 0 ? " bg-slate-100 " : "") + "\">%5d</td><td class=\"text-nowrap border p-1\">%s</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
-                                    ++lineNumber,
-                                    actionName,
-                                    keyboardShortcut.toString().replaceAll("pressed ", "").replace("+", " ").replace("[", "[ ").replace("]", " ]")));
-                        }
-                    }
-                }
-                stringBuilder.append("\t</table>\n");
-
-                stringBuilder.append("<div class=\"text-3xl text-bold p-4\">").append(keymapsComboBoxModel.getSelectedItem()).append(" KeyMap</div>\n");
-                stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
-                stringBuilder.append("\t\t<tr>");
-                int columnCount = keyMapTableModel.getColumnCount();
-                int rowCount = keyMapTableModel.getRowCount();
-                for (int column = 0; column < columnCount; column++) {
-                    stringBuilder.append(String.format("<th class=\"text-nowrap border p-1\">%s</th>", keyMapTableModel.getColumnName(column).replace("<html>", "")));
-                }
-                stringBuilder.append("</tr>\n");
-
-                for (int row = 0; row < rowCount; row++) {
-                    stringBuilder.append("\t\t<tr>");
-                    for (int column = 0; column < columnCount; column++) {
-                        stringBuilder.append(String.format("<td class=\"text-nowrap border p-1" + (row % 2 == 0 ? " bg-slate-100 " : "") + "\">%s</td>", String.valueOf(keyMapTableModel.getValueAt(row, column)).replace("<html>", "")));
-                    }
-                    stringBuilder.append("\t\t</tr>\n");
-                }
-
-                stringBuilder.append("\t</table>\n");
-
-                if (!unboundActionsSet.isEmpty()) {
-                    stringBuilder.append("<div class=\"text-3xl text-bold p-4\">Unbound Actions</div>\n");
-                    stringBuilder.append("\t<table class=\"table-auto border-collapse border\">\n");
-                    stringBuilder.append("\t\t<tr>\n");
-                    stringBuilder.append("<th class=\"text-right text-nowrap border p-1\">#</th>");
-                    stringBuilder.append("<th class=\"text-nowrap border p-1\">Action</th>");
-                    stringBuilder.append("\t\t</tr>\n");
-
-                    lineNumber = 0;
-                    for (String actionName : unboundActionsSet) {
-                        stringBuilder.append(String.format("\t\t<tr><td class=\"text-right text-nowrap border p-1" + (lineNumber % 2 == 0 ? " bg-slate-100 " : "") + "\">%5d</td><td class=\"text-nowrap border p-1\">%s</td></tr>\n",
-                                ++lineNumber,
-                                actionName));
-                    }
-                    stringBuilder.append("\t</table>\n");
-                }
-
-                stringBuilder.append("</body>");
-                stringBuilder.append("</html>");
-
-                try {
-                    Path actionMapAndKeyMapsPath = Files.createTempFile("Action map and Key maps", ".html");
-                    Files.writeString(actionMapAndKeyMapsPath, stringBuilder.toString());
-                    Desktop.getDesktop().browse(actionMapAndKeyMapsPath.toUri());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        });
+    private static String buildActionsHtmlForFirst(List<String> actionIds, String keyStrokeLabel, ActionManager actionManager) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < actionIds.size(); i++) {
+            sb.append(i == 0 ? "<html>" : "<br/>");
+            sb.append("<nobr>");
+            sb.append(String.format("<code>[ %s ]</code> - ", keyStrokeLabel));
+            sb.append(Shortcuts.actionDisplayName(actionManager, actionIds.get(i)));
+            sb.append("</nobr>");
+        }
+        return sb.toString();
     }
 
-    public void generatePdf() {
-        ApplicationManager.getApplication().invokeLater(() -> {
-            WriteCommandAction.runWriteCommandAction(project, () -> {
-                StringBuilder sb = new StringBuilder();
-                // OpenHTMLtoPDF expects well-formed XHTML
-                sb.append("<html xmlns='http://www.w3.org/1999/xhtml'><head><meta charset='UTF-8' />");
-                // Inline, minimal CSS suitable for HTML->PDF
-                sb.append("<style>" +
-                        "@page{size: letter landscape; margin:24pt;}" +
-                        "body{font-family: sans-serif; font-size:10pt;}" +
-                        ".title{font-size:24pt; font-weight:bold; margin:12pt 0;}" +
-                        ".subtitle{font-size:12pt; font-weight:bold; margin:6pt 0;}" +
-                        ".section{font-size:16pt; font-weight:bold; margin:12pt 0 6pt 0;}" +
-                        "table{border-collapse:collapse; width:100%;}" +
-                        "th,td{border:1px solid #999; padding:4pt; white-space:nowrap;}" +
-                        "th{background:#eee;}" +
-                        ".row-alt{background:#f6f6f6;}" +
-                        "img.logo{max-width:100%; height:auto;}" +
-                        "</style></head><body>");
-
-                String splashImageUrl;
-                ApplicationInfo applicationInfo = ApplicationInfo.getInstance();
-                splashImageUrl = applicationInfo.getSplashImageUrl();
-                File splashFile = null;
-                if (splashImageUrl != null) {
-                    URL resourceUrl = ApplicationInfo.class.getResource(splashImageUrl);
-                    if (resourceUrl != null) {
-                        try {
-                            Path splashImagePath = Files.createTempFile("splash", ".png");
-                            Files.copy(resourceUrl.openStream(), splashImagePath, StandardCopyOption.REPLACE_EXISTING);
-                            splashFile = splashImagePath.toFile();
-                            sb.append("<div style='margin:6pt 0'><img class='logo' src='" + convertFileToDataUrl(splashFile) + "' /></div>");
-                        } catch (IOException e) {
-                            // ignore logo if unavailable
-                        }
-                    }
-                }
-
-                sb.append("<div class='title'>" + applicationInfo.getFullApplicationName() + " ( " + applicationInfo.getFullVersion() + " )</div>");
-
-                Date date = new Date();
-                Instant instant = date.toInstant();
-                ZonedDateTime zonedDateTime = instant.atZone(ZoneId.systemDefault());
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
-                String formattedDate = zonedDateTime.format(formatter);
-                sb.append("<div class='subtitle'>As of: " + formattedDate + "</div>");
-
-                // Action Map
-                sb.append("<div class='section'>Action Map</div>");
-                sb.append("<table><tr><th class='text-right'>#</th><th>Action</th><th>Shortcut</th></tr>");
-
-                // Use the keymap selected in the Key maps tab
-                Keymap selectedKeymap = (Keymap) keymapsComboBoxModel.getSelectedItem();
-                if (selectedKeymap == null) {
-                    selectedKeymap = KeymapManager.getInstance().getActiveKeymap();
-                }
-                Collection<String> actionIdList = selectedKeymap.getActionIdList();
-                ActionManager actionManager = ActionManager.getInstance();
-                SortedMap<String, Shortcut[]> actionNameToShortcutsMap = new TreeMap<>();
-                // We will not include Unbound Actions in this PDF per requirements.
-                for (String actionId : actionIdList) {
-                    AnAction action = actionManager.getAction(actionId);
-                    Shortcut[] shortcuts = selectedKeymap.getShortcuts(actionId);
-                    String actionKey;
-                    if (action == null || action.getTemplatePresentation().getText() == null) {
-                        actionKey = actionId;
-                    } else {
-                        actionKey = action.getTemplatePresentation().getText();
-                    }
-                    if (shortcuts.length > 0) {
-                        actionNameToShortcutsMap.put(actionKey, shortcuts);
-                    }
-                }
-
-                int lineNumber = 0;
-                for (Map.Entry<String, Shortcut[]> entry : actionNameToShortcutsMap.entrySet()) {
-                    String actionName = entry.getKey();
-                    Shortcut[] shortcuts = entry.getValue();
-                    for (Shortcut shortcut : shortcuts) {
-                        if (shortcut instanceof KeyboardShortcut keyboardShortcut) {
-                            sb.append(String.format("<tr class='%s'><td style='text-align:right'>%5d</td><td>%s</td><td>%s</td></tr>",
-                                    (lineNumber % 2 == 0 ? "row-alt" : ""),
-                                    ++lineNumber,
-                                    x(actionName),
-                                    x(normalizeShortcut(keyboardShortcut))));
-                        }
-                    }
-                }
-                sb.append("</table>");
-
-                sb.append("</body></html>");
-
-                try {
-                    // Build the body PDF from HTML
-                    Path bodyPdf = Files.createTempFile("dynakeymap-body", ".pdf");
-                    try (java.io.OutputStream os = java.nio.file.Files.newOutputStream(bodyPdf)) {
-                        com.openhtmltopdf.pdfboxout.PdfRendererBuilder builder = new com.openhtmltopdf.pdfboxout.PdfRendererBuilder();
-                        builder.withHtmlContent(sb.toString(), null);
-                        // Force PDF to landscape via builder as a fallback (renderer reads @page but this is extra safety)
-                        builder.toStream(os);
-                        builder.run();
-                    }
-
-                    // Build a cover page to resemble the reference and include logo
-                    Path coverPdf = Files.createTempFile("dynakeymap-cover", ".pdf");
-                    try (org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
-                        // Landscape cover page to match body
-                        org.apache.pdfbox.pdmodel.common.PDRectangle pageSize = new org.apache.pdfbox.pdmodel.common.PDRectangle(
-                                org.apache.pdfbox.pdmodel.common.PDRectangle.LETTER.getHeight(),
-                                org.apache.pdfbox.pdmodel.common.PDRectangle.LETTER.getWidth()
-                        );
-                        org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(pageSize);
-                        doc.addPage(page);
-                        try (org.apache.pdfbox.pdmodel.PDPageContentStream cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page)) {
-                            float margin = 36f; // half-inch margin
-                            float yTop = pageSize.getHeight() - margin;
-
-                            // Title
-                            cs.beginText();
-                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA_BOLD, 24);
-                            cs.newLineAtOffset(margin, yTop - 40);
-                            cs.showText(applicationInfo.getFullApplicationName());
-                            cs.endText();
-
-                            // Version
-                            cs.beginText();
-                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
-                            cs.newLineAtOffset(margin, yTop - 70);
-                            cs.showText("Version: " + applicationInfo.getFullVersion());
-                            cs.endText();
-
-                            // Timestamp
-                            cs.beginText();
-                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
-                            cs.newLineAtOffset(margin, yTop - 90);
-                            cs.showText("As of: " + formattedDate);
-                            cs.endText();
-
-                            // Selected keymap name
-                            String keymapTitle = "Keymap: " + String.valueOf(keymapsComboBoxModel.getSelectedItem());
-                            cs.beginText();
-                            cs.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA_BOLD, 14);
-                            cs.newLineAtOffset(margin, yTop - 120);
-                            cs.showText(keymapTitle);
-                            cs.endText();
-
-                            // Logo if available
-                            if (splashFile != null && splashFile.exists()) {
-                                try {
-                                    org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img = org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromFileByContent(splashFile, doc);
-                                    float imgWidth = Math.min(pageSize.getWidth() - 2 * margin, img.getWidth());
-                                    float scale = imgWidth / img.getWidth();
-                                    float imgHeight = img.getHeight() * scale;
-                                    float imgX = margin;
-                                    float imgY = margin;
-                                    cs.drawImage(img, imgX, imgY, imgWidth, imgHeight);
-                                } catch (IOException ignored) {
-                                }
-                            }
-                        }
-                        doc.save(coverPdf.toFile());
-                    }
-
-                    // Merge cover + body
-                    Path finalPdf = Files.createTempFile("Action map and Key maps", ".pdf");
-                    org.apache.pdfbox.multipdf.PDFMergerUtility merger = new org.apache.pdfbox.multipdf.PDFMergerUtility();
-                    merger.setDestinationFileName(finalPdf.toString());
-                    merger.addSource(coverPdf.toFile());
-                    merger.addSource(bodyPdf.toFile());
-                    merger.mergeDocuments(null);
-
-                    Desktop.getDesktop().open(finalPdf.toFile());
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        });
+    private static String buildActionsHtmlForChord(List<FirstKeyStrokeAndActionId> pairs, String secondStrokeLabel, ActionManager actionManager) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pairs.size(); i++) {
+            sb.append(i == 0 ? "<html>" : "<br/>");
+            FirstKeyStrokeAndActionId pair = pairs.get(i);
+            sb.append("<nobr>");
+            sb.append(String.format("<code>[ %s ]</code> ", Shortcuts.keyStrokeDisplay(pair.firstKeyStroke())));
+            sb.append(String.format("<code>[ %s ]</code> - ", secondStrokeLabel));
+            sb.append(Shortcuts.actionDisplayName(actionManager, pair.actionId()));
+            sb.append("</nobr>");
+        }
+        return sb.toString();
     }
 
-    private static final Pattern KEY_MATCHER = Pattern.compile("([_\\w]+)");
+    private static void addRowAndSetHeight(DefaultTableModel model, JBTable table, Vector<String> row, int linesPerCellMax) {
+        model.addRow(row);
+        int lastRow = model.getRowCount() - 1;
+        table.setRowHeight(lastRow, (linesPerCellMax + 1) * ROW_LINE_HEIGHT);
+    }
 
     private static String kbdfy(String keys) {
         return KEY_MATCHER.matcher(keys).replaceAll("<nobr><code>[ $1 ]</code></nobr>").trim();
     }
 
-    static String convertFileToDataUrl(File file) throws IOException {
-        byte[] fileContent = Files.readAllBytes(file.toPath());
-        String base64 = Base64.getEncoder().encodeToString(fileContent);
-        String mimeType = Files.probeContentType(file.toPath());
+    // ---- Title bar actions -----------------------------------------------
 
-        return "data:image/png;base64," + base64;
+    public void generateHtml() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            Object label = keymapsComboBoxModel.getSelectedItem();
+            Keymap selectedKeymap = selectedKeymap(label);
+            HtmlExporter.export(selectedKeymap, label, keyMapTableModel);
+        });
     }
 
-    private static String normalizeShortcut(KeyboardShortcut keyboardShortcut) {
-        return keyboardShortcut.toString()
-                .replaceAll("pressed ", "")
-                .replace("+", " ")
-                .replace("[", "[ ")
-                .replace("]", " ]");
+    public void generatePdf() {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            Object label = keymapsComboBoxModel.getSelectedItem();
+            PdfExporter.export(selectedKeymap(label), label);
+        });
     }
 
-    private String buildKeymapText(Keymap keymap) {
-        ActionManager actionManager = ActionManager.getInstance();
-        SortedMap<String, String> lineByKey = new TreeMap<>();
-        for (String actionId : keymap.getActionIdList()) {
-            Shortcut[] shortcuts = keymap.getShortcuts(actionId);
-            List<String> normalized = new ArrayList<>();
-            for (Shortcut s : shortcuts) {
-                if (s instanceof KeyboardShortcut ks) {
-                    normalized.add(normalizeShortcut(ks));
-                }
-            }
-            Collections.sort(normalized);
-            AnAction action = actionManager.getAction(actionId);
-            String actionName = (action == null || action.getTemplatePresentation().getText() == null)
-                    ? actionId
-                    : action.getTemplatePresentation().getText();
-            String key = actionName + "\t(" + actionId + ")";
-            String value = normalized.isEmpty() ? "" : String.join(" | ", normalized);
-            lineByKey.put(key, value);
-        }
-        StringBuilder sb = new StringBuilder();
-        String keymapName = keymap.getName();
-        Keymap activeKeymap = KeymapManagerEx.getInstanceEx().getActiveKeymap();
-        if (activeKeymap.getName().equals(keymapName)) {
-            keymapName = keymapName + " (active)";
-        }
-        Keymap keymapParent = keymap.getParent();
-        if (keymapParent != null) {
-            keymapName += " ( Based on " + keymapParent.getName() + " )";
-        }
-        sb.append("Keymap: ").append(keymapName).append("\n");
-        for (Map.Entry<String, String> e : lineByKey.entrySet()) {
-            sb.append(e.getKey()).append(" = ").append(e.getValue()).append("\n");
-        }
-        return sb.toString();
+    private static Keymap selectedKeymap(Object comboSelection) {
+        return (comboSelection instanceof Keymap keymap) ? keymap : KeymapManager.getInstance().getActiveKeymap();
     }
 
     private void compareSelectedKeymaps() {
-        KeymapManagerEx keymapManager = (KeymapManagerEx) KeymapManagerEx.getInstance();
-        Keymap left = (Keymap) keymapsComboBoxModel.getSelectedItem();
-        Keymap right = (Keymap) otherKeymapsComboBoxModel.getSelectedItem();
-
-        if (left == null || right == null) {
-            Messages.showWarningDialog(project, "Please select two keymaps to compare.", "Compare Keymaps");
-            return;
-        }
-        if (left.getName().equals(right.getName())) {
-            Messages.showInfoMessage(project, "Selected keymaps are the same.", "Compare Keymaps");
-            return;
-        }
-
-        String leftText = buildKeymapText(left);
-        String rightText = buildKeymapText(right);
-
-        String title = "Keymap Diff: " + left.getName() + " ↔ " + right.getName();
-        String leftTitle = left.getName();
-        String rightTitle = right.getName();
-
-        DiffContentFactory contentFactory = DiffContentFactory.getInstance();
-        var leftContent = contentFactory.create(leftText);
-        var rightContent = contentFactory.create(rightText);
-        SimpleDiffRequest request = new SimpleDiffRequest(
-                title,
-                leftContent,
-                rightContent,
-                leftTitle,
-                rightTitle
-        );
-        DiffManager.getInstance().showDiff(project, request);
+        KeymapComparator.compare(project,
+                (Keymap) keymapsComboBoxModel.getSelectedItem(),
+                (Keymap) otherKeymapsComboBoxModel.getSelectedItem());
     }
 }
