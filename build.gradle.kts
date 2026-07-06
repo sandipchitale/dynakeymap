@@ -1,18 +1,27 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     id("org.jetbrains.intellij.platform")
 }
 
-group = "dev.sandipchitale"
-version = "1.0.61"
+group = providers.gradleProperty("pluginGroup").get()
+version = providers.gradleProperty("pluginVersion").get()
+
+// Set the JVM language level used to build the project.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(providers.gradleProperty("javaVersion").get())
+    }
+}
 
 dependencies {
     intellijPlatform {
-        intellijIdeaUltimate("2026.1") {
+        create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion")) {
             useInstaller = false
             useCache = true
         }
-        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+        testFramework(TestFrameworkType.Platform)
     }
 
     // PDF generation
@@ -21,8 +30,28 @@ dependencies {
     implementation("com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10")
 }
 
+// Configure IntelliJ Platform Gradle Plugin -> https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
 intellijPlatform {
     buildSearchableOptions = false
+
+    pluginConfiguration {
+        version = providers.gradleProperty("pluginVersion")
+
+        ideaVersion {
+            sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
+        }
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.gradleProperty("intellijPublishToken")
+    }
 
     pluginVerification {
         ides {
@@ -32,25 +61,7 @@ intellijPlatform {
 }
 
 tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
-    }
-
-    patchPluginXml {
-        sinceBuild.set("253")
-        untilBuild.set("261.*")
-    }
-
-    signPlugin {
-        certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        privateKey.set(System.getenv("PRIVATE_KEY"))
-        password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
-    }
-
-    publishPlugin {
-        token.set(providers.gradleProperty("intellijPublishToken"))
+    wrapper {
+        gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
 }
-
